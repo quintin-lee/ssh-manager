@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+
+set ip     [lindex $argv 0]
+set user   [lindex $argv 1]
+set passwd [lindex $argv 2]
+set port   [lindex $argv 3]
+
+set timeout 10
+spawn ssh $user@$ip -p $port
+expect {
+ "*yes/no" { send "yes\r"; exp_continue}
+ "*password:" { send "$passwd\r" }
+}  
+
+expect "$user@*"  {send "export TERM=xterm\r"}
+interact
