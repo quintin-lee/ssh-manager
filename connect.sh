@@ -29,7 +29,7 @@ PS3="Enter a number[1-${#servers[*]}]:"
 select server in ${servers[@]}
 do
     # $REPLY 输入的标号
-    #echo $REPLY
+    # convert tab to space
     str=$(echo ${ALL_SERVERS[${REPLY}]} | sed 's#\t# #g');
     info=(${str})
     if [ "x${server}" != "x" ]
@@ -38,10 +38,6 @@ do
         user_name=${info[2]}
         user_passwd=${info[3]}
         port=${info[4]}
-        #host=$(grep "${server}" ${CONF} | awk '{print $2}')
-        #user_name=$(grep "${server}" ${CONF} | awk '{print $3}')
-        #user_passwd=$(grep "${server}" ${CONF} | awk '{print $4}')
-        #port=$(grep "${server}" ${CONF} | awk '{print $5}')
         ${CMD_DIR}/login.exp ${host} ${user_name} ${user_passwd} ${port}
         break;
     fi
