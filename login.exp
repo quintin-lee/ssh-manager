@@ -6,7 +6,7 @@ set passwd [lindex $argv 2]
 set port   [lindex $argv 3]
 
 set timeout 10
-spawn ssh $user@$ip -p $port
+spawn ssh -o ServerAliveInterval=60 $user@$ip -p $port
 expect {
  "*yes/no" { send "yes\r"; exp_continue}
  "*password:" { send "$passwd\r" }
