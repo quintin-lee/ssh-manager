@@ -1,0 +1,58 @@
+servers:
+  - manjaro_liqm
+  - manjaro_yusur
+  - postgres_93
+  - postgres_11
+  - postgres_12
+  - root_100
+  - root_101
+  - root_102
+
+manjaro_liqm:
+  ip: 192.168.4.18
+  port: 22
+  user: liqm
+  password: "manjaro"
+
+manjaro_yusur:
+  ip: 192.168.4.18
+  port: 22
+  user: yusur
+  password: " "
+
+postgres_93:
+  ip: 192.168.28.93
+  port: 22
+  user: postgres
+  password: "postgres"
+
+postgres_11:
+  ip: 192.168.28.11
+  port: 22
+  user: postgres
+  password: "postgres"
+
+postgres_12:
+  ip: 192.168.28.12
+  port: 22
+  user: postgres
+  password: "postgres"
+
+root_100:
+  ip: 192.168.28.100
+  port: 22
+  user: root
+  password: "Race2023@yusur.tech"
+
+root_101:
+  ip: 192.168.28.101
+  port: 22
+  user: root
+  password: "Race2023@yusur.tech"
+
+root_102:
+  ip: 192.168.28.102
+  port: 22
+  user: root
+  password: "Race2023@yusur.tech"
+
