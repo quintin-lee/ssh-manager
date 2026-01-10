@@ -12,7 +12,61 @@ cd ssh-manager
 makepkg
 ```
 
-## 2. 安装
+## 2. 使用 install.sh 脚本安装
+
+您也可以使用提供的 `install.sh` 脚本进行安装：
+
+### 2.1 安装步骤
+
+1. 克隆或下载项目：
+
+   ```shell
+   git clone https://github.com/quintin-lee/ssh-manager.git
+   cd ssh-manager
+   ```
+
+2. 运行安装脚本（需要 root 权限）：
+   ```shell
+   sudo ./install.sh
+   ```
+
+### 2.2 自定义安装路径
+
+可以通过环境变量自定义安装路径：
+
+```shell
+# 自定义二进制文件安装路径
+sudo INSTALL_PATH=/usr/local/bin/sshm ./install.sh
+
+# 自定义配置目录
+sudo CONFIG_DIR=/opt/ssh-manager/etc ./install.sh
+
+# 同时自定义多个路径
+sudo INSTALL_PATH=/opt/bin/sshm CONFIG_DIR=/opt/ssh-manager/conf ./install.sh
+```
+
+### 2.3 install.sh 脚本特性
+
+- **自动依赖检查**：安装前自动检查所需的依赖项，并提供安装建议
+- **彩色日志输出**：提供详细且易于理解的安装过程反馈
+- **自动备份**：安装前自动备份现有配置和二进制文件
+- **权限管理**：自动设置正确的文件权限
+- **完整卸载**：安装完成后会生成 `ssh-manager-uninstall` 卸载脚本
+- **错误处理**：完善的错误处理和异常恢复机制
+
+### 2.4 卸载
+
+如需卸载 SSH Manager，可以使用自动生成的卸载脚本来完成：
+
+```shell
+sudo ssh-manager-uninstall
+```
+
+该脚本会提示确认卸载，并安全地移除所有相关文件，同时保留您的用户配置文件以保护敏感信息。
+
+## 3. 传统包管理器安装方法
+
+如果您更倾向于使用传统的包管理器安装，可以按照以下方式：
 
 ```shell
 sudo pacman -U 包名
