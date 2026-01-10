@@ -605,28 +605,63 @@ import_config() {
 
 # --- 9. 主循环 ---
 init_env
+
+# 显示帮助信息
+show_help() {
+    clear
+    echo -e "${CYAN}==== SSH MANAGER v5.9 帮助 ====${RESET}"
+    echo -e "${GREEN}主菜单快捷键:${RESET}"
+    echo "  [Enter]     - 显示节点列表并连接"
+    echo "  [/]         - 搜索节点"
+    echo "  [a]         - 添加新节点"
+    echo "  [d]         - 删除节点"
+    echo "  [e]         - 导出配置 (Base64)"
+    echo "  [i]         - 导入配置 (Base64)"
+    echo "  [h]         - 显示此帮助"
+    echo "  [q]         - 退出程序"
+    echo ""
+    echo -e "${GREEN}节点列表快捷键:${RESET}"
+    echo "  [1-9]       - 连接到对应编号的节点"
+    echo "  [/] + 关键词 - 搜索节点"
+    echo "  [回车]      - 返回上级菜单"
+    echo ""
+    echo -e "${YELLOW}提示: 输入 'q' 或 'Ctrl+C' 可随时退出当前操作${RESET}"
+    echo ""
+    read -n 1 -p "按任意键返回主菜单..." dummy
+    echo
+}
+
 while true; do
     clear
-    echo -e "${CYAN}==== SSH MANAGER v0.2 (Final Stable) ====${RESET}"
-    echo "1) 节点列表与连接 (List & Connect)"
-    echo "2) 快捷搜索节点 (Search)"
-    echo "-----------------------------------"
-    echo "3) 添加新节点 (Add)"
-    echo "4) 删除旧节点 (Delete)"
-    echo "5) 导出配置 (Base64)"
-    echo "6) 导入配置 (Base64)"
-    echo "q) 退出 (Quit)"
-    echo "-----------------------------------"
-    read -p "选择 >> " choice
+    echo -e "${CYAN}==== SSH MANAGER v5.9 (Final Stable) ====${RESET}"
+    echo -e "${GREEN}请选择操作:${RESET}"
+    echo -e "  ${BLUE}[回车]${RESET} 节点列表与连接 ${YELLOW}(List & Connect)${RESET}"
+    echo -e "  ${BLUE}[/]${RESET}    快捷搜索节点 ${YELLOW}(Search)${RESET}"
+    echo -e "  ${BLUE}[a]${RESET}    添加新节点 ${YELLOW}(Add)${RESET}"
+    echo -e "  ${BLUE}[d]${RESET}    删除节点 ${YELLOW}(Delete)${RESET}"
+    echo -e "  ${BLUE}[e]${RESET}    导出配置 ${YELLOW}(Export)${RESET}"
+    echo -e "  ${BLUE}[i]${RESET}    导入配置 ${YELLOW}(Import)${RESET}"
+    echo -e "  ${BLUE}[h]${RESET}    帮助 ${YELLOW}(Help)${RESET}"
+    echo -e "  ${BLUE}[q]${RESET}    退出 ${YELLOW}(Quit)${RESET}"
+    echo ""
+    echo -e "${YELLOW}提示: 直接按回车将进入节点列表${RESET}"
+
+    # 读取单个字符，不需要按回车
+    read -n 1 -s choice
+
+    # 添加换行以便输出更清晰
+    echo
+
     case $choice in
-        1) list_and_choose ;;
-        2) read -p "关键词: " kw; list_and_choose "$kw" ;;
-        3) add_node ;;
-        4) list_and_choose "" "" "delete" ;;
-        5) export_config ;;
-        6) import_config ;;
-        q|Q) echo -e "${YELLOW}退出程序...${RESET}"; exit 0 ;;
-        *) echo -e "${RED}无效选择，请重新输入${RESET}"; sleep 1 ;;
+        "") list_and_choose ;;  # 回车键
+        1) list_and_choose ;;   # 数字1 (向后兼容)
+        [aA]) add_node ;;
+        [dD]) list_and_choose "" "" "delete" ;;
+        [eE]) export_config ;;
+        [iI]) import_config ;;
+        [hH]) show_help ;;
+        [qQ]) echo -e "${YELLOW}退出程序...${RESET}"; exit 0 ;;
+        [/]) read -p "关键词: " kw; list_and_choose "$kw" ;;
+        *) echo -e "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"; sleep 2 ;;
     esac
 done
-
