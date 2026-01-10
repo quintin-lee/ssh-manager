@@ -560,47 +560,125 @@ export_config() {
         sleep 1
         return 1
     fi
-    
-    echo -e "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
-    echo "注意：此内容包含敏感的密码信息，请妥善保管！"
-    echo
-    base64 -w 0 "$CONF"
-    echo -e "\n------------------------"
-    read -n 1 -p "按任意键返回..."
-    echo
+
+    echo -e "\n--- ${BLUE}配置导出选项${RESET} ---"
+    echo "1) ${YELLOW}屏幕输出 Base64${RESET} (适合复制分享)"
+    echo "2) ${YELLOW}保存到文件${RESET} (适合备份)"
+    echo -e "${GREEN}选择导出方式 (1/2): ${RESET}\c"
+
+    read -n 1 export_choice
+    echo  # 换行
+
+    case $export_choice in
+        1)
+            echo -e "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
+            echo -e "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
+            echo
+            base64 -w 0 "$CONF"
+            echo -e "\n------------------------"
+            read -n 1 -p "按任意键返回..."
+            echo
+            ;;
+        2)
+            read -p "请输入导出文件路径 (默认: ./ssh-manager-config.yaml): " export_file
+            export_file=${export_file:-"./ssh-manager-config.yaml"}
+
+            if cp "$CONF" "$export_file"; then
+                chmod 600 "$export_file" 2>/dev/null
+                echo -e "${GREEN}配置已导出到: $export_file${RESET}"
+            else
+                echo -e "${RED}导出失败${RESET}"
+            fi
+            sleep 2
+            ;;
+        *)
+            echo -e "${RED}无效选择${RESET}"
+            sleep 1
+            ;;
+    esac
 }
 
 import_config() {
-    echo -e "\n--- ${BLUE}BASE64 配置导入${RESET} ---"
-    echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
-    read -p "是否继续? (y/n): " confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo -e "${YELLOW}取消导入操作${RESET}"
-        sleep 1
-        return 0
-    fi
-    
-    read -p "粘贴 BASE64 内容: " b64
-    if [[ -z "$b64" ]]; then
-        echo -e "${RED}输入为空，导入失败${RESET}"
-        sleep 1
-        return 1
-    fi
-    
-    b64_clean=$(echo "$b64" | tr -d '[:space:]')
-    
-    if ! echo "$b64_clean" | base64 -d > /dev/null 2>&1; then
-        echo -e "${RED}无效的 BASE64 格式${RESET}"
-        sleep 1
-        return 1
-    fi
-    
-    echo "$b64_clean" | base64 -d > "$CONF"
-    chmod 600 "$CONF" 2>/dev/null
-    
-    echo -e "${GREEN}配置导入成功${RESET}"
-    sleep 1
-    return 0
+    echo -e "\n--- ${BLUE}配置导入选项${RESET} ---"
+    echo "1) ${YELLOW}从 Base64 字符串导入${RESET} (从剪贴板)"
+    echo "2) ${YELLOW}从文件导入${RESET} (从备份文件)"
+    echo -e "${GREEN}选择导入方式 (1/2): ${RESET}\c"
+
+    read -n 1 import_choice
+    echo  # 换行
+
+    case $import_choice in
+        1)
+            echo -e "${BLUE}从 Base64 字符串导入${RESET}"
+            echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
+            read -p "是否继续? (y/n): " confirm
+            if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+                echo -e "${YELLOW}取消导入操作${RESET}"
+                sleep 1
+                return 0
+            fi
+
+            read -p "粘贴 BASE64 内容: " b64
+            if [[ -z "$b64" ]]; then
+                echo -e "${RED}输入为空，导入失败${RESET}"
+                sleep 1
+                return 1
+            fi
+
+            b64_clean=$(echo "$b64" | tr -d '[:space:]')
+
+            if ! echo "$b64_clean" | base64 -d > /dev/null 2>&1; then
+                echo -e "${RED}无效的 BASE64 格式${RESET}"
+                sleep 1
+                return 1
+            fi
+
+            echo "$b64_clean" | base64 -d > "$CONF"
+            chmod 600 "$CONF" 2>/dev/null
+
+            echo -e "${GREEN}配置导入成功${RESET}"
+            sleep 1
+            return 0
+            ;;
+        2)
+            echo -e "${BLUE}从文件导入${RESET}"
+            echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
+            read -p "是否继续? (y/n): " confirm
+            if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+                echo -e "${YELLOW}取消导入操作${RESET}"
+                sleep 1
+                return 0
+            fi
+
+            read -p "请输入配置文件路径: " import_file
+
+            if [[ ! -f "$import_file" ]]; then
+                echo -e "${RED}文件不存在: $import_file${RESET}"
+                sleep 2
+                return 1
+            fi
+
+            # Validate that it's a valid YAML file by checking if it has the nodes section
+            if ! head -20 "$import_file" | grep -q "nodes:"; then
+                echo -e "${RED}验证失败：文件可能不是有效的SSH管理器配置文件${RESET}"
+                sleep 2
+                return 1
+            fi
+
+            # Copy the file to the current config location
+            if cp "$import_file" "$CONF"; then
+                chmod 600 "$CONF" 2>/dev/null
+                echo -e "${GREEN}配置从文件导入成功: $import_file${RESET}"
+            else
+                echo -e "${RED}导入失败${RESET}"
+            fi
+            sleep 2
+            ;;
+        *)
+            echo -e "${RED}无效选择${RESET}"
+            sleep 1
+            ;;
+    esac
 }
 
 # --- 9. 主循环 ---
@@ -615,8 +693,8 @@ show_help() {
     echo "  [/]         - 搜索节点"
     echo "  [a]         - 添加新节点"
     echo "  [d]         - 删除节点"
-    echo "  [e]         - 导出配置 (Base64)"
-    echo "  [i]         - 导入配置 (Base64)"
+    echo "  [e]         - 导出配置 (Base64 或 文件)"
+    echo "  [i]         - 导入配置 (Base64 或 文件)"
     echo "  [h]         - 显示此帮助"
     echo "  [q]         - 退出程序"
     echo ""
@@ -665,3 +743,5 @@ while true; do
         *) echo -e "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"; sleep 2 ;;
     esac
 done
+
+
