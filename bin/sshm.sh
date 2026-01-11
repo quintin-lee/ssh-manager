@@ -28,6 +28,20 @@ CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
 # --- 1. 环境初始化（优化权限处理）---
 init_env() {
+    # First check if user has personal config file
+    local user_conf="${HOME}/.config/ssh-manager/config.yaml"
+    local user_conf_dir="$(dirname "$user_conf")"
+
+    # Create user config directory if it doesn't exist
+    if [[ ! -d "$user_conf_dir" ]]; then
+        mkdir -p "$user_conf_dir" 2>/dev/null || true
+    fi
+
+    # If user config exists, use it instead of default
+    if [[ -f "$user_conf" ]]; then
+        CONF="$user_conf"
+    fi
+
     local conf_dir=$(dirname "$CONF")
 
     # Check if config is in system directory like /etc
@@ -41,14 +55,7 @@ init_env() {
             fi
 
             # Check if user has a personal config - this should be prioritized
-            local user_conf="${HOME}/.config/ssh-manager/config.yaml"
-
-            # Create user config directory if it doesn't exist
-            if [[ ! -d "$(dirname "$user_conf")" ]]; then
-                mkdir -p "$(dirname "$user_conf")" 2>/dev/null || true
-            fi
-
-            # If user config doesn't exist, copy from system default
+            # Already checked above, but if we reach here, copy from system default
             if [[ ! -f "$user_conf" ]]; then
                 if cp "$CONF" "$user_conf" 2>/dev/null; then
                     chmod 600 "$user_conf" 2>/dev/null || true
@@ -72,9 +79,6 @@ init_env() {
             fi
         else
             # System config doesn't exist, suggest creating user config
-            local user_conf="${HOME}/.config/ssh-manager/config.yaml"
-            local user_conf_dir="$(dirname "$user_conf")"
-
             mkdir -p "$user_conf_dir"
             touch "$user_conf"
             chmod 600 "$user_conf"
@@ -86,14 +90,20 @@ init_env() {
     else
         # Non-system config path, use original logic
         if [[ ! -w "$conf_dir" ]]; then
-            echo -e "${RED}错误：目录 $conf_dir 不可写${RESET}"
-            exit 1
+            # Change to user config path if it's writable
+            if [[ -w "$user_conf_dir" ]]; then
+                CONF="$user_conf"
+                conf_dir="$user_conf_dir"
+            else
+                echo -e "${RED}错误：目录 $conf_dir 不可写${RESET}"
+                exit 1
+            fi
         fi
 
         if [[ ! -f "$CONF" ]]; then
-            # 仅创建空的配置文件结构，不添加示例节点
+            # Create config file in final location
             echo "nodes:" > "$CONF"
-            echo -e "${YELLOW}已创建默认配置文件，请编辑 $CONF 或使用添加功能添加节点${RESET}"
+            echo -e "${YELLOW}已创建默认配置文件: $CONF${RESET}"
         fi
     fi
 
@@ -711,7 +721,7 @@ show_help() {
 
 while true; do
     clear
-    echo -e "${CYAN}==== SSH MANAGER v5.9 (Final Stable) ====${RESET}"
+    echo -e "${CYAN}==== SSH MANAGER v0.2 (Final Stable) ====${RESET}"
     echo -e "${GREEN}请选择操作:${RESET}"
     echo -e "  ${BLUE}[回车]${RESET} 节点列表与连接 ${YELLOW}(List & Connect)${RESET}"
     echo -e "  ${BLUE}[/]${RESET}    快捷搜索节点 ${YELLOW}(Search)${RESET}"
@@ -743,5 +753,10 @@ while true; do
         *) echo -e "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"; sleep 2 ;;
     esac
 done
+
+
+
+
+
 
 
