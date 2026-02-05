@@ -68,8 +68,8 @@ init_env() {
 
                     # For read-only system config, just ensure basic structure exists
                     if ! grep -q "^nodes:" "$CONF" 2>/dev/null; then
-                        echo "nodes:" > /tmp/sshm_temp_config$$
-                        cat "$CONF" >> /tmp/sshm_temp_config$$
+                        echo "nodes:" >/tmp/sshm_temp_config$$
+                        cat "$CONF" >>/tmp/sshm_temp_config$$
                         mv /tmp/sshm_temp_config$$ "$CONF" 2>/dev/null || true
                     fi
                 fi
@@ -84,7 +84,7 @@ init_env() {
             chmod 600 "$user_conf"
             CONF="$user_conf"
 
-            echo "nodes:" > "$CONF"
+            echo "nodes:" >"$CONF"
             echo -e "${YELLOW}已创建个人配置文件: $CONF${RESET}"
         fi
     else
@@ -102,7 +102,7 @@ init_env() {
 
         if [[ ! -f "$CONF" ]]; then
             # Create config file in final location
-            echo "nodes:" > "$CONF"
+            echo "nodes:" >"$CONF"
             echo -e "${YELLOW}已创建默认配置文件: $CONF${RESET}"
         fi
     fi
@@ -155,10 +155,10 @@ init_env() {
 read_node_info() {
     local id=$1
     unset NODE_NAME NODE_GROUP NODE_HOST NODE_PORT NODE_USER NODE_TYPE NODE_PASS NODE_KEYPATH
-    
+
     local in_node=0
     local current_id=0
-    
+
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
             ((current_id++))
@@ -170,7 +170,7 @@ read_node_info() {
             fi
             continue
         fi
-        
+
         if [[ $in_node -eq 1 && $current_id -eq $id ]]; then
             if [[ "$line" =~ ^[[:space:]]*group:[[:space:]]* ]]; then
                 NODE_GROUP=$(echo "$line" | sed 's/^[[:space:]]*group:[[:space:]]*//')
@@ -190,8 +190,8 @@ read_node_info() {
                 break
             fi
         fi
-    done < "$CONF"
-    
+    done <"$CONF"
+
     NODE_GROUP=${NODE_GROUP:-Default}
     NODE_PORT=${NODE_PORT:-22}
     NODE_TYPE=${NODE_TYPE:-pass}
@@ -203,7 +203,7 @@ get_all_nodes() {
     local group_filter="$2"
     unset NODES_ARRAY
     NODES_ARRAY=()
-    
+
     local current_id=0
     local node_name=""
     local node_group=""
@@ -211,7 +211,7 @@ get_all_nodes() {
     local node_port=""
     local node_type=""
     local in_node=0
-    
+
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
             if [[ $in_node -eq 1 && -n "$node_name" ]]; then
@@ -226,7 +226,7 @@ get_all_nodes() {
                     NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type")
                 fi
             fi
-            
+
             ((current_id++))
             in_node=1
             node_name=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
@@ -236,7 +236,7 @@ get_all_nodes() {
             node_type="pass"
             continue
         fi
-        
+
         if [[ $in_node -eq 1 ]]; then
             if [[ "$line" =~ ^[[:space:]]*group:[[:space:]]* ]]; then
                 node_group=$(echo "$line" | sed 's/^[[:space:]]*group:[[:space:]]*//')
@@ -248,8 +248,8 @@ get_all_nodes() {
                 node_type=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
             fi
         fi
-    done < "$CONF"
-    
+    done <"$CONF"
+
     if [[ $in_node -eq 1 && -n "$node_name" ]]; then
         local match=1
         if [[ -n "$filter_key" && ! "${node_name,,}" =~ $filter_key && ! "$node_host" =~ $filter_key ]]; then
@@ -268,7 +268,7 @@ get_all_nodes() {
 ssh_connect() {
     local id=$1
     read_node_info "$id"
-    
+
     if [[ -z "$NODE_HOST" ]]; then
         echo -e "${RED}无效 ID: $id (未找到节点)${RESET}"
         sleep 1
@@ -277,35 +277,56 @@ ssh_connect() {
 
     echo -e "${YELLOW}>>> 连接中: $NODE_NAME ($NODE_HOST)...${RESET}"
 
-    pass_escaped=$(echo "$NODE_PASS" | sed 's/[\\\$\[\]{}()*.+?|^&!#~]/\\&/g')
-    kp_escaped=$(echo "$NODE_KEYPATH" | sed 's/[\\\$\[\]{}()*.+?|^&!#~]/\\&/g')
+    # 使用环境变量传递敏感信息，彻底解决特殊字符（如 ! $ " ' 等）的转义问题
+    export SSH_PASS="$NODE_PASS"
+    export SSH_KEY="$NODE_KEYPATH"
+    export SSH_HOST="$NODE_HOST"
+    export SSH_PORT="$NODE_PORT"
+    export SSH_USER="$NODE_USER"
 
     if [[ "$NODE_TYPE" == "key" ]]; then
         expect -c "
             set timeout 30
-            spawn ssh -o StrictHostKeyChecking=no -i \"$kp_escaped\" -p $NODE_PORT $NODE_USER@$NODE_HOST
+            # 从环境变量读取配置，避免 Tcl/Shell 转义地狱
+            set pass \$env(SSH_PASS)
+            set key \$env(SSH_KEY)
+            set host \$env(SSH_HOST)
+            set port \$env(SSH_PORT)
+            set user \$env(SSH_USER)
+
+            spawn ssh -o StrictHostKeyChecking=no -i \"\$key\" -p \$port \$user@\$host
             expect {
-                \"*password:*\" { send \"$pass_escaped\r\" }
-                \"*passphrase*\" { send \"$pass_escaped\r\" }
+                \"*password:*\" { send -- \"\$pass\r\" }
+                \"*passphrase*\" { send -- \"\$pass\r\" }
                 \"*yes/no*\" { send \"yes\r\"; exp_continue }
                 timeout { puts \"连接超时\"; exit 1 }
-                eof { exit }
+                eof { catch wait result; exit [lindex \$result 3] }
             }
             interact
+            catch wait result; exit [lindex \$result 3]
         "
     else
         expect -c "
             set timeout 30
-            spawn ssh -o StrictHostKeyChecking=no -p $NODE_PORT $NODE_USER@$NODE_HOST
+            set pass \$env(SSH_PASS)
+            set host \$env(SSH_HOST)
+            set port \$env(SSH_PORT)
+            set user \$env(SSH_USER)
+
+            spawn ssh -o StrictHostKeyChecking=no -p \$port \$user@\$host
             expect {
-                \"*password:*\" { send \"$pass_escaped\r\" }
+                \"*password:*\" { send -- \"\$pass\r\" }
                 \"*yes/no*\" { send \"yes\r\"; exp_continue }
                 timeout { puts \"连接超时\"; exit 1 }
-                eof { exit }
+                eof { catch wait result; exit [lindex \$result 3] }
             }
             interact
+            catch wait result; exit [lindex \$result 3]
         "
     fi
+
+    # 清理环境变量
+    unset SSH_PASS SSH_KEY SSH_HOST SSH_PORT SSH_USER
 }
 
 # --- 5. 列表与交互界面（终极修复版）---
@@ -319,7 +340,7 @@ list_and_choose() {
 
         clear
         local FORMAT_STR="%-4s | %-4s | %-12s | %-14s | %-19s | %-5s"
-        
+
         # 表头（直接用 echo -e 确保颜色生效）
         echo -e "${CYAN}$(printf "${FORMAT_STR}" "St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
         echo "---------------------------------------------------------------------------"
@@ -330,14 +351,14 @@ list_and_choose() {
         local display_nodes=()
 
         for node in "${NODES_ARRAY[@]}"; do
-            IFS='|' read -r original_id name group host port type <<< "$node"
+            IFS='|' read -r original_id name group host port type <<<"$node"
             display_nodes+=("$original_id|$name|$group|$host|$port|$type")
             found=1
         done
 
         for node in "${display_nodes[@]}"; do
-            IFS='|' read -r original_id name group host port type <<< "$node"
-            
+            IFS='|' read -r original_id name group host port type <<<"$node"
+
             if [[ -z "$filter_key" && "$group" != "$current_group" ]]; then
                 # 分组行：echo -e 解析颜色
                 echo -e "${PURPLE}$(printf "${FORMAT_STR}" "" "" "[$group]" "" "" "")${RESET}"
@@ -370,7 +391,7 @@ list_and_choose() {
             fi
             echo -e "${YELLOW}$(printf "${FORMAT_STR}" "" "" "${empty_msg}" "" "" "")${RESET}"
         fi
-        
+
         echo "---------------------------------------------------------------------------"
         if [[ "$mode" == "delete" ]]; then
             echo -e "${RED}[删除模式]${RESET} 输入 ${YELLOW}显示ID${RESET} 执行删除 | ${GREEN}q${RESET} 返回"
@@ -383,7 +404,7 @@ list_and_choose() {
 
         if [[ "$mode" == "delete" ]]; then
             if [[ "$input" =~ ^[0-9]+$ && $input -ge 1 && $input -lt $display_id ]]; then
-                local target_node=${display_nodes[$((input-1))]}
+                local target_node=${display_nodes[$((input - 1))]}
                 local original_id=$(echo "$target_node" | cut -d'|' -f1)
                 perform_delete "$original_id"
                 continue
@@ -393,24 +414,28 @@ list_and_choose() {
             fi
         else
             case $input in
-                /*) 
-                    filter_key="${input:1}"; 
-                    filter_key="${filter_key,,}";
-                    ;;
-                [0-9]*) 
-                    if [[ $input -ge 1 && $input -lt $display_id ]]; then
-                        local target_node=${display_nodes[$((input-1))]}
-                        local original_id=$(echo "$target_node" | cut -d'|' -f1)
-                        ssh_connect "$original_id"
-                    else
-                        echo -e "${RED}无效的显示ID，请重新输入${RESET}"
-                        sleep 1
+            /*)
+                filter_key="${input:1}"
+                filter_key="${filter_key,,}"
+                ;;
+            [0-9]*)
+                if [[ $input -ge 1 && $input -lt $display_id ]]; then
+                    local target_node=${display_nodes[$((input - 1))]}
+                    local original_id=$(echo "$target_node" | cut -d'|' -f1)
+                    ssh_connect "$original_id"
+                    if [[ $? -ne 0 ]]; then
+                        echo -e "${RED}连接异常退出，按任意键返回...${RESET}"
+                        read -n 1 -s -r
                     fi
-                    ;;
-                *)
-                    echo -e "${RED}无效输入，请重新输入${RESET}"
+                else
+                    echo -e "${RED}无效的显示ID，请重新输入${RESET}"
                     sleep 1
-                    ;;
+                fi
+                ;;
+            *)
+                echo -e "${RED}无效输入，请重新输入${RESET}"
+                sleep 1
+                ;;
             esac
         fi
     done
@@ -422,12 +447,16 @@ perform_delete() {
     read_node_info "$id"
 
     if [[ -z "$NODE_NAME" ]]; then
-        echo -e "${RED}无效 ID: $id${RESET}"; sleep 1; return 1
+        echo -e "${RED}无效 ID: $id${RESET}"
+        sleep 1
+        return 1
     fi
 
     read -p "确认永久删除节点 [$NODE_NAME] ? (y/n): " confirm
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo -e "${YELLOW}取消删除操作${RESET}"; sleep 1; return 0
+        echo -e "${YELLOW}取消删除操作${RESET}"
+        sleep 1
+        return 0
     fi
 
     local tmp_file=$(mktemp)
@@ -452,13 +481,13 @@ perform_delete() {
             if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
                 skip=0
                 in_node=0
-                echo "$line" >> "$tmp_file"
+                echo "$line" >>"$tmp_file"
             fi
             continue
         fi
 
-        echo "$line" >> "$tmp_file"
-    done < "$CONF"
+        echo "$line" >>"$tmp_file"
+    done <"$CONF"
 
     sed_i '/^[[:space:]]*$/N;/^[[:space:]]*\n[[:space:]]*$/D' "$tmp_file"
     if [[ $(head -n1 "$tmp_file" | tr -d '[:space:]') != "nodes:" ]]; then
@@ -517,7 +546,9 @@ add_node() {
         echo -e "${RED}用户不能为空，请重新输入${RESET}"
     done
 
-    local t="pass"; local kp=""; local ps=""
+    local t="pass"
+    local kp=""
+    local ps=""
     while true; do
         read -p "认证类型 (1:密码 2:密钥，默认 1): " ac
         ac=${ac:-1}
@@ -541,14 +572,16 @@ add_node() {
             fi
             echo -e "${RED}私钥文件不存在，请重新输入${RESET}"
         done
-        read -s -p "私钥短语 (可选): " ps; echo ""
+        read -s -p "私钥短语 (可选): " ps
+        echo ""
     else
-        read -s -p "密码: " ps; echo ""
+        read -s -p "密码: " ps
+        echo ""
     fi
 
     sed_i -e '$a\' "$CONF" 2>/dev/null
 
-    cat >> "$CONF" <<EOF
+    cat >>"$CONF" <<EOF
   - name: $n
     group: $g
     host: $h
@@ -577,34 +610,34 @@ export_config() {
     echo -e "${GREEN}选择导出方式 (1/2): ${RESET}\c"
 
     read -n 1 export_choice
-    echo  # 换行
+    echo # 换行
 
     case $export_choice in
-        1)
-            echo -e "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
-            echo -e "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
-            echo
-            base64 -w 0 "$CONF"
-            echo -e "\n------------------------"
-            read -n 1 -p "按任意键返回..."
-            echo
-            ;;
-        2)
-            read -p "请输入导出文件路径 (默认: ./ssh-manager-config.yaml): " export_file
-            export_file=${export_file:-"./ssh-manager-config.yaml"}
+    1)
+        echo -e "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
+        echo -e "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
+        echo
+        base64 -w 0 "$CONF"
+        echo -e "\n------------------------"
+        read -n 1 -p "按任意键返回..."
+        echo
+        ;;
+    2)
+        read -p "请输入导出文件路径 (默认: ./ssh-manager-config.yaml): " export_file
+        export_file=${export_file:-"./ssh-manager-config.yaml"}
 
-            if cp "$CONF" "$export_file"; then
-                chmod 600 "$export_file" 2>/dev/null
-                echo -e "${GREEN}配置已导出到: $export_file${RESET}"
-            else
-                echo -e "${RED}导出失败${RESET}"
-            fi
-            sleep 2
-            ;;
-        *)
-            echo -e "${RED}无效选择${RESET}"
-            sleep 1
-            ;;
+        if cp "$CONF" "$export_file"; then
+            chmod 600 "$export_file" 2>/dev/null
+            echo -e "${GREEN}配置已导出到: $export_file${RESET}"
+        else
+            echo -e "${RED}导出失败${RESET}"
+        fi
+        sleep 2
+        ;;
+    *)
+        echo -e "${RED}无效选择${RESET}"
+        sleep 1
+        ;;
     esac
 }
 
@@ -615,79 +648,79 @@ import_config() {
     echo -e "${GREEN}选择导入方式 (1/2): ${RESET}\c"
 
     read -n 1 import_choice
-    echo  # 换行
+    echo # 换行
 
     case $import_choice in
-        1)
-            echo -e "${BLUE}从 Base64 字符串导入${RESET}"
-            echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
-            read -p "是否继续? (y/n): " confirm
-            if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-                echo -e "${YELLOW}取消导入操作${RESET}"
-                sleep 1
-                return 0
-            fi
-
-            read -p "粘贴 BASE64 内容: " b64
-            if [[ -z "$b64" ]]; then
-                echo -e "${RED}输入为空，导入失败${RESET}"
-                sleep 1
-                return 1
-            fi
-
-            b64_clean=$(echo "$b64" | tr -d '[:space:]')
-
-            if ! echo "$b64_clean" | base64 -d > /dev/null 2>&1; then
-                echo -e "${RED}无效的 BASE64 格式${RESET}"
-                sleep 1
-                return 1
-            fi
-
-            echo "$b64_clean" | base64 -d > "$CONF"
-            chmod 600 "$CONF" 2>/dev/null
-
-            echo -e "${GREEN}配置导入成功${RESET}"
+    1)
+        echo -e "${BLUE}从 Base64 字符串导入${RESET}"
+        echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
+        read -p "是否继续? (y/n): " confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            echo -e "${YELLOW}取消导入操作${RESET}"
             sleep 1
             return 0
-            ;;
-        2)
-            echo -e "${BLUE}从文件导入${RESET}"
-            echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
-            read -p "是否继续? (y/n): " confirm
-            if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-                echo -e "${YELLOW}取消导入操作${RESET}"
-                sleep 1
-                return 0
-            fi
+        fi
 
-            read -p "请输入配置文件路径: " import_file
-
-            if [[ ! -f "$import_file" ]]; then
-                echo -e "${RED}文件不存在: $import_file${RESET}"
-                sleep 2
-                return 1
-            fi
-
-            # Validate that it's a valid YAML file by checking if it has the nodes section
-            if ! head -20 "$import_file" | grep -q "nodes:"; then
-                echo -e "${RED}验证失败：文件可能不是有效的SSH管理器配置文件${RESET}"
-                sleep 2
-                return 1
-            fi
-
-            # Copy the file to the current config location
-            if cp "$import_file" "$CONF"; then
-                chmod 600 "$CONF" 2>/dev/null
-                echo -e "${GREEN}配置从文件导入成功: $import_file${RESET}"
-            else
-                echo -e "${RED}导入失败${RESET}"
-            fi
-            sleep 2
-            ;;
-        *)
-            echo -e "${RED}无效选择${RESET}"
+        read -p "粘贴 BASE64 内容: " b64
+        if [[ -z "$b64" ]]; then
+            echo -e "${RED}输入为空，导入失败${RESET}"
             sleep 1
-            ;;
+            return 1
+        fi
+
+        b64_clean=$(echo "$b64" | tr -d '[:space:]')
+
+        if ! echo "$b64_clean" | base64 -d >/dev/null 2>&1; then
+            echo -e "${RED}无效的 BASE64 格式${RESET}"
+            sleep 1
+            return 1
+        fi
+
+        echo "$b64_clean" | base64 -d >"$CONF"
+        chmod 600 "$CONF" 2>/dev/null
+
+        echo -e "${GREEN}配置导入成功${RESET}"
+        sleep 1
+        return 0
+        ;;
+    2)
+        echo -e "${BLUE}从文件导入${RESET}"
+        echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
+        read -p "是否继续? (y/n): " confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            echo -e "${YELLOW}取消导入操作${RESET}"
+            sleep 1
+            return 0
+        fi
+
+        read -p "请输入配置文件路径: " import_file
+
+        if [[ ! -f "$import_file" ]]; then
+            echo -e "${RED}文件不存在: $import_file${RESET}"
+            sleep 2
+            return 1
+        fi
+
+        # Validate that it's a valid YAML file by checking if it has the nodes section
+        if ! head -20 "$import_file" | grep -q "nodes:"; then
+            echo -e "${RED}验证失败：文件可能不是有效的SSH管理器配置文件${RESET}"
+            sleep 2
+            return 1
+        fi
+
+        # Copy the file to the current config location
+        if cp "$import_file" "$CONF"; then
+            chmod 600 "$CONF" 2>/dev/null
+            echo -e "${GREEN}配置从文件导入成功: $import_file${RESET}"
+        else
+            echo -e "${RED}导入失败${RESET}"
+        fi
+        sleep 2
+        ;;
+    *)
+        echo -e "${RED}无效选择${RESET}"
+        sleep 1
+        ;;
     esac
 }
 
@@ -741,22 +774,24 @@ while true; do
     echo
 
     case $choice in
-        "") list_and_choose ;;  # 回车键
-        1) list_and_choose ;;   # 数字1 (向后兼容)
-        [aA]) add_node ;;
-        [dD]) list_and_choose "" "" "delete" ;;
-        [eE]) export_config ;;
-        [iI]) import_config ;;
-        [hH]) show_help ;;
-        [qQ]) echo -e "${YELLOW}退出程序...${RESET}"; exit 0 ;;
-        [/]) read -p "关键词: " kw; list_and_choose "$kw" ;;
-        *) echo -e "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"; sleep 2 ;;
+    "") list_and_choose ;; # 回车键
+    1) list_and_choose ;;  # 数字1 (向后兼容)
+    [aA]) add_node ;;
+    [dD]) list_and_choose "" "" "delete" ;;
+    [eE]) export_config ;;
+    [iI]) import_config ;;
+    [hH]) show_help ;;
+    [qQ])
+        echo -e "${YELLOW}退出程序...${RESET}"
+        exit 0
+        ;;
+    [/])
+        read -p "关键词: " kw
+        list_and_choose "$kw"
+        ;;
+    *)
+        echo -e "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"
+        sleep 2
+        ;;
     esac
 done
-
-
-
-
-
-
-
