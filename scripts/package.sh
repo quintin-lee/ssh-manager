@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -e
+
+# Resolve Project Root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Configuration
+APP_NAME="ssh-manager"
+VERSION="0.2"
+RELEASE="1"
+ARCH="all"
+DESCRIPTION="Manager ssh connection in your terminal!"
+LICENSE="MIT"
+URL="https://github.com/yourusername/ssh-manager"
+MAINTAINER="Your Name <your.email@example.com>"
+VENDOR="Your Company"
+
+# Directories
+BUILD_DIR="${PROJECT_ROOT}/build"
+STAGING_DIR="${BUILD_DIR}/stage"
+OUTPUT_DIR="${PROJECT_ROOT}/dist"
+
+# Clean previous builds
+rm -rf "${BUILD_DIR}"
+mkdir -p "${STAGING_DIR}"
+mkdir -p "${OUTPUT_DIR}"
+
+# -----------------------------------------------------------------------------
+# System Detection
+# -----------------------------------------------------------------------------
+OS_TYPE="generic"
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    case "$ID" in
+        debian|ubuntu|kali|raspbian) OS_TYPE="debian" ;;
+        centos|fedora|rhel|rocky|almalinux) OS_TYPE="redhat" ;;
+        arch|manjaro) OS_TYPE="arch" ;;
+        *) 
+            # Check ID_LIKE
+            if [[ "$ID_LIKE" =~ "debian" ]]; then OS_TYPE="debian";
+            elif [[ "$ID_LIKE" =~ "rhel" || "$ID_LIKE" =~ "fedora" ]]; then OS_TYPE="redhat";
+            fi
+            ;;
+    esac
+fi
+
+echo "Detected System Type: $OS_TYPE"
+echo "Starting build process for ${APP_NAME} v${VERSION}..."
+
+# -----------------------------------------------------------------------------
+# 1. Prepare Staging Area
+# -----------------------------------------------------------------------------
+echo "Preparing staging area..."
+mkdir -p "${STAGING_DIR}/usr/bin"
+mkdir -p "${STAGING_DIR}/etc/ssh-manager"
+mkdir -p "${STAGING_DIR}/usr/share/doc/${APP_NAME}"
+mkdir -p "${STAGING_DIR}/usr/share/licenses/${APP_NAME}"
+
+cp "${PROJECT_ROOT}/bin/sshm.sh" "${STAGING_DIR}/usr/bin/sshm"
+chmod 755 "${STAGING_DIR}/usr/bin/sshm"
+cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml"
+chmod 644 "${STAGING_DIR}/etc/ssh-manager/config.yaml"
+cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml.default"
+chmod 644 "${STAGING_DIR}/etc/ssh-manager/config.yaml.default"
+
+sed -i 's#CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${STAGING_DIR}/usr/bin/sshm"
+
+[ -f "${PROJECT_ROOT}/README.md" ] && cp "${PROJECT_ROOT}/README.md" "${STAGING_DIR}/usr/share/doc/${APP_NAME}/README.md"
+
+cat > "${STAGING_DIR}/usr/share/licenses/${APP_NAME}/LICENSE" << EOF
+MIT License
+Copyright (c) $(date +%Y) ${APP_NAME} Authors
+EOF
+
+# -----------------------------------------------------------------------------
+# 2. Build Functions
+# -----------------------------------------------------------------------------
+
+build_deb() {
+    if command -v dpkg-deb >/dev/null 2>&1; then
+        echo "Building .deb package..."
+        DEB_DIR="${BUILD_DIR}/deb"
+        mkdir -p "${DEB_DIR}/DEBIAN"
+        cp -r "${STAGING_DIR}/"* "${DEB_DIR}/"
+        cat > "${DEB_DIR}/DEBIAN/control" << EOF
+Package: ${APP_NAME}
+Version: ${VERSION}-${RELEASE}
+Section: utils
+Priority: optional
+Architecture: ${ARCH}
+Depends: expect, bash, sed, gawk, iputils-ping, coreutils
+Maintainer: ${MAINTAINER}
+Description: ${DESCRIPTION}
+EOF
+        dpkg-deb --build "${DEB_DIR}" "${OUTPUT_DIR}/${APP_NAME}_${VERSION}-${RELEASE}_${ARCH}.deb"
+    else
+        echo "Error: 'dpkg-deb' not found. Cannot build .deb package."
+        return 1
+    fi
+}
+
+build_rpm() {
+    if command -v rpmbuild >/dev/null 2>&1; then
+        echo "Building .rpm package..."
+        RPM_ROOT="${BUILD_DIR}/rpmbuild"
+        mkdir -p "${RPM_ROOT}"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        TAR_NAME="${APP_NAME}-${VERSION}"
+        mkdir -p "${RPM_ROOT}/BUILD/${TAR_NAME}"
+        cp -r "${STAGING_DIR}/"* "${RPM_ROOT}/BUILD/${TAR_NAME}/"
+        
+        cat > "${RPM_ROOT}/SPECS/${APP_NAME}.spec" << EOF
+Name:       ${APP_NAME}
+Version:    ${VERSION}
+Release:    ${RELEASE}%{?dist}
+Summary:    ${DESCRIPTION}
+License:    ${LICENSE}
+BuildArch:  noarch
+Requires:   expect, bash, sed, gawk, iputils, coreutils
+%description
+${DESCRIPTION}
+%install
+mkdir -p %{buildroot}/usr/bin
+mkdir -p %{buildroot}/etc/ssh-manager
+cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/bin/* %{buildroot}/usr/bin/
+cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/etc/ssh-manager/* %{buildroot}/etc/ssh-manager/
+%files
+/usr/bin/sshm
+%config(noreplace) /etc/ssh-manager/config.yaml
+/etc/ssh-manager/config.yaml.default
+EOF
+        rpmbuild --define "_topdir ${RPM_ROOT}" -bb "${RPM_ROOT}/SPECS/${APP_NAME}.spec"
+        find "${RPM_ROOT}/RPMS" -name "*.rpm" -exec cp {} "${OUTPUT_DIR}/" \;
+    else
+        echo "Error: 'rpmbuild' not found. Cannot build .rpm package."
+        return 1
+    fi
+}
+
+build_arch() {
+    if [ -f "${PROJECT_ROOT}/PKGBUILD" ] && command -v makepkg >/dev/null 2>&1; then
+        echo "Building Arch package..."
+        cd "${PROJECT_ROOT}"
+        makepkg -f
+        mv *.pkg.tar.zst "${OUTPUT_DIR}/" 2>/dev/null || true
+        cd - >/dev/null
+    else
+        echo "Skipping Arch package: PKGBUILD or makepkg not found."
+    fi
+}
+
+build_tarball() {
+    echo "Building generic tarball..."
+    TAR_NAME="${APP_NAME}-${VERSION}"
+    TAR_DIR="${BUILD_DIR}/${TAR_NAME}"
+    mkdir -p "${TAR_DIR}"
+    cp -r "${STAGING_DIR}/"* "${TAR_DIR}/"
+    [ -f "${PROJECT_ROOT}/install.sh" ] && cp "${PROJECT_ROOT}/install.sh" "${TAR_DIR}/install.sh"
+    tar -czf "${OUTPUT_DIR}/${TAR_NAME}.tar.gz" -C "${BUILD_DIR}" "${TAR_NAME}"
+}
+
+# -----------------------------------------------------------------------------
+# 3. Execution based on System Type
+# -----------------------------------------------------------------------------
+
+case "$OS_TYPE" in
+    debian)
+        build_deb || build_tarball
+        ;;
+    redhat)
+        build_rpm || build_tarball
+        ;;
+    arch)
+        build_arch || build_tarball
+        ;;
+    *)
+        echo "Unknown or generic system. Building all available or tarball..."
+        # Try building what we can, otherwise tarball
+        if ! { build_deb || build_rpm; }; then
+            build_tarball
+        fi
+        ;;
+esac
+
+echo "----------------------------------------------------------------"
+echo "Build complete! Artifacts are in ${OUTPUT_DIR}"
+ls -lh "${OUTPUT_DIR}"

@@ -1,127 +1,80 @@
 # SSH Manager
 
-基于 expect 工具实现 SSH 自动登录服务器，管理服务器 SSH 连接。
-支持密码认证和密钥认证等多种方式，提供了交互式的终端界面。
+基于 expect 工具实现的 SSH 自动登录与连接管理工具。
+支持密码认证和密钥认证等多种方式，提供了交互式的终端界面，支持节点分组、搜索、导入导出等功能。
 
-## 1. ArchLinux/Manjaro 发行版打包
+## 1. 安装方法
 
-```shell
+### 1.1 通用一键安装 (推荐)
+
+我们提供了一个自解压安装包，可以在任何 Linux 发行版上运行。
+
+**构建安装包:**
+```bash
+./scripts/build_makeself.sh
+```
+这将在根目录下生成一个名为 `ssh-manager-0.2.run` 的文件。
+
+**安装:**
+```bash
+sudo ./ssh-manager-0.2.run
+```
+
+该安装程序会自动：
+- 安装二进制文件到 `/usr/local/bin/sshm`
+- 安装默认配置到 `/etc/ssh-manager/config.yaml`
+- 自动处理依赖检查和权限设置
+- 生成卸载脚本 `/usr/local/bin/sshm-uninstall`
+
+### 1.2 系统原生包安装 (.deb / .rpm)
+
+如果您更喜欢使用系统的包管理器（如 `apt` 或 `yum`/`dnf`），可以使用打包脚本生成对应的安装包。
+
+**生成安装包:**
+```bash
+./scripts/package.sh
+```
+该脚本会自动检测您的系统类型并尝试生成对应的包。您也可以在任何系统上生成通用包。生成的文件位于 `dist/` 目录下。
+
+**安装 (Debian/Ubuntu):**
+```bash
+sudo dpkg -i dist/ssh-manager_0.2-1_all.deb
+sudo apt-get install -f  # 修复可能缺失的依赖
+```
+
+**安装 (RHEL/CentOS/Fedora):**
+```bash
+sudo rpm -ivh dist/ssh-manager-0.2-1.noarch.rpm
+```
+
+### 1.3 Arch Linux 安装
+
+对于 Arch Linux 用户，可以直接使用 `makepkg` 或通过 `package.sh` 脚本构建。
+
+```bash
 git clone https://github.com/quintin-lee/ssh-manager.git
-
 cd ssh-manager
-makepkg
+makepkg -si
 ```
 
-## 2. 使用 install.sh 脚本安装
+## 2. 使用说明
 
-您也可以使用提供的 `install.sh` 脚本进行安装：
+### 2.1 启动程序
 
-### 2.1 安装步骤
-
-1. 克隆或下载项目：
-
-   ```shell
-   git clone https://github.com/quintin-lee/ssh-manager.git
-   cd ssh-manager
-   ```
-
-2. 运行安装脚本（需要 root 权限）：
-   ```shell
-   sudo ./install.sh
-   ```
-
-### 2.2 自定义安装路径
-
-可以通过环境变量自定义安装路径：
-
-```shell
-# 自定义二进制文件安装路径
-sudo INSTALL_PATH=/usr/local/bin/sshm ./install.sh
-
-# 自定义配置目录
-sudo CONFIG_DIR=/opt/ssh-manager/etc ./install.sh
-
-# 同时自定义多个路径
-sudo INSTALL_PATH=/opt/bin/sshm CONFIG_DIR=/opt/ssh-manager/conf ./install.sh
-```
-
-### 2.3 install.sh 脚本特性
-
-- **自动依赖检查**：安装前自动检查所需的依赖项，并提供安装建议
-- **彩色日志输出**：提供详细且易于理解的安装过程反馈
-- **自动备份**：安装前自动备份现有配置和二进制文件
-- **权限管理**：自动设置正确的文件权限
-- **完整卸载**：安装完成后会生成 `ssh-manager-uninstall` 卸载脚本
-- **错误处理**：完善的错误处理和异常恢复机制
-
-### 2.4 卸载
-
-如需卸载 SSH Manager，可以使用自动生成的卸载脚本来完成：
-
-```shell
-sudo ssh-manager-uninstall
-```
-
-该脚本会提示确认卸载，并安全地移除所有相关文件，同时保留您的用户配置文件以保护敏感信息。
-
-## 3. 传统包管理器安装方法
-
-如果您更倾向于使用传统的包管理器安装，可以按照以下方式：
-
-```shell
-sudo pacman -U 包名
-```
-
-## 3. 使用
-
-首次运行 `sshm` 会在当前目录创建 `config.yaml` 配置文件。
-在打包安装后，系统会提供一个默认配置模板位于 `/etc/ssh-manager/config.yaml.default`。
-
-### 3.1 启动程序
-
-```shell
+在终端中直接运行：
+```bash
 sshm
 ```
 
-### 3.2 指定配置文件路径
+首次运行程序时，如果未找到配置文件，它会自动为您创建一个默认的用户配置文件 `~/.config/ssh-manager/config.yaml`。
 
-安装后，可通过以下方式指定配置文件路径：
-
-1. **使用环境变量**：通过 `SSH_MANAGER_CONFIG` 环境变量指定配置文件路径
-
-   ```shell
-   SSH_MANAGER_CONFIG=/path/to/your/custom-config.yaml sshm
-   ```
-
-   您也可以将其添加到 shell 配置文件（如 `~/.bashrc` 或 `~/.zshrc`）中以永久生效：
-
-   ```shell
-   export SSH_MANAGER_CONFIG=~/.config/ssh-manager/config.yaml
-   ```
-
-2. **默认行为**：如未设置环境变量，程序会自动按照以下优先级查找配置文件：
-
-   - 用户个人配置：`~/.config/ssh-manager/config.yaml`
-   - 系统级配置：`/etc/ssh-manager/config.yaml`
-   - 当前目录：`./config.yaml`
-
-   首次运行时，如果用户配置不存在，会自动从系统配置复制到用户配置目录。
-
-### 3.3 系统级配置
-
-包管理器安装后，系统配置文件模板位于：
-
-- `/etc/ssh-manager/config.yaml` - 系统级默认配置 (在更新时不会被覆盖)
-- `/usr/bin/sshm` - 主程序位置
-- `/usr/share/doc/ssh-manager/README` - 文档位置
-
-### 3.4 交互式菜单操作
+### 2.2 交互式菜单
 
 程序提供优化的交互式菜单，支持键盘快捷键：
 
 | 快捷键   | 功能                            |
 | -------- | ------------------------------- |
-| **回车** | 节点列表与连接 (List & Connect) |
+| **回车** | 进入节点列表模式 / 确认操作     |
 | **/**    | 快捷搜索节点 (Search)           |
 | **a**    | 添加新节点 (Add)                |
 | **d**    | 删除节点 (Delete)               |
@@ -130,23 +83,16 @@ sshm
 | **h**    | 显示帮助 (Help)                 |
 | **q**    | 退出程序 (Quit)                 |
 
-### 3.5 配置文件格式
+### 2.3 配置文件路径优先级
 
-配置文件为 `config.yaml`，格式如下：
+1. **环境变量**: `SSH_MANAGER_CONFIG`
+2. **用户配置**: `~/.config/ssh-manager/config.yaml` (推荐)
+3. **系统配置**: `/etc/ssh-manager/config.yaml`
+4. **当前目录**: `./config.yaml`
 
-```yaml
-nodes:
-  - name: 服务器名称
-    group: 分组名
-    host: 主机IP或域名
-    port: 端口
-    user: 用户名
-    type: 认证类型 (pass/key)
-    pass: 密码或密钥短语
-    keypath: 私钥路径 (仅当 type=key 时)
-```
+### 2.4 配置文件格式
 
-示例：
+配置文件采用 YAML 格式：
 
 ```yaml
 nodes:
@@ -157,79 +103,45 @@ nodes:
     user: admin
     type: pass
     pass: "123456"
-    keypath: ""
-  - name: 测试服务器
-    group: Test
-    host: example.com
-    port: 2222
-    user: testuser
+  - name: AWS节点
+    group: Cloud
+    host: ec2-user@1.2.3.4
+    port: 22
+    user: ec2-user
     type: key
-    pass: "密钥短语（如果有）"
-    keypath: "/home/user/.ssh/id_rsa"
+    keypath: "/home/user/.ssh/my-key.pem"
 ```
 
-## 4. 新特性
+## 3. 开发与构建
 
-- **优化交互界面**：支持键盘快捷键操作，无需输入数字和回车
-- **智能配置管理**：自动处理系统配置与用户配置，优先使用用户配置
-- **文件导入导出**：支持直接从文件导入/导出配置，也支持原有的 Base64 方式
-- **帮助系统**：内置帮助系统，按 `h` 键查看所有快捷键
-- **配置文件保护**：在系统更新时保留用户自定义配置，不会被包管理器覆盖
-- **交互式菜单**：直观的终端界面，支持节点列表、搜索、添加、删除等功能
-- **多认证支持**：支持密码认证和密钥认证两种方式
-- **分组管理**：支持将服务器按分组进行管理
-- **状态显示**：实时显示服务器在线状态（绿点表示在线，红点表示离线）
-- **搜索功能**：支持按关键词快速搜索服务器
-- **安全存储**：配置文件权限自动设置为600，保护敏感信息
+本项目包含方便的构建脚本，位于 `scripts/` 目录下：
 
-## 5. 配置导入导出
+- **`scripts/build_makeself.sh`**: 生成 `.run` 自解压安装包 (需要安装 `makeself`)。
+- **`scripts/package.sh`**: 自动检测系统并生成 `.deb`, `.rpm` 或 `.tar.gz` 包。
 
-### 5.1 从文件导入配置
-
-1. 按 `i` 键进入导入功能
-2. 选择选项 `2` 从文件导入
-3. 输入配置文件路径
-4. 确认覆盖现有配置
-
-### 5.2 从 Base64 字符串导入配置
-
-1. 按 `i` 键进入导入功能
-2. 选择选项 `1` 从 Base64 字符串导入
-3. 粘贴 Base64 编码的配置内容
-
-### 5.3 导出配置到文件
-
-1. 按 `e` 键进入导出功能
-2. 选择选项 `2` 保存到文件
-3. 输入要保存的文件路径
-
-### 5.4 导出 Base64 字符串
-
-1. 按 `e` 键进入导出功能
-2. 选择选项 `1` 屏幕输出 Base64
-
-## 6. 依赖项
-
+**依赖项:**
 - expect
-- ssh client
 - bash
 - sed
 - awk
-- ping
-- base64
+- ping (可选，用于健康检查)
+- base64 (用于导入导出)
 
-## 7. 安全建议
+## 4. 卸载
 
-1. 对于生产环境，强烈推荐使用 SSH 密钥认证而不是密码认证
-2. 如果必须使用密码认证，请确保配置文件有适当的权限保护
-3. 定期更新和轮换认证凭据
-4. 使用强密码或密码短语保护私钥文件
-5. 检查 SSH 主机密钥指纹以防止中间人攻击
-6. 在共享或公共计算机上使用时，注意清理配置文件
+如果您是通过 `.run` 安装包或 `install.sh` 安装的，可以使用以下命令卸载：
 
-## 8. 故障排除
+```bash
+sudo sshm-uninstall
+```
 
-- **"目录不可写"错误**：这是正常的，程序会自动创建用户配置文件
-- **找不到配置文件**：检查环境变量 `SSH_MANAGER_CONFIG` 或在当前目录创建 `config.yaml`
-- **连接超时**：确认服务器IP、端口、用户名和认证信息正确
-- **权限错误**：确保配置文件权限为 600 (`chmod 600 config.yaml`)
+如果是通过包管理器（apt/yum/pacman）安装的，请使用对应的卸载命令（如 `apt remove ssh-manager`）。
+
+## 5. 安全建议
+
+1. **权限保护**: 配置文件包含敏感信息，程序会自动尝试将其权限设为 `600`。请确保您的系统多用户环境下该文件不被他人读取。
+2. **密钥认证**: 推荐使用 SSH 密钥对认证，并在配置文件中指定 `keypath`。
+3. **备份**: 建议定期使用程序内置的导出功能 (`e` 键) 备份您的配置。
+
+---
+License: MIT
