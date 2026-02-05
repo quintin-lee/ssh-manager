@@ -338,6 +338,17 @@ list_and_choose() {
     while true; do
         get_all_nodes "$filter_key" "$group_filter"
 
+        # 优化：按分组聚合排序，防止同一分组被拆分显示
+        # Sort by Group (field 3) then Name (field 2)
+        if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
+            local sorted_output
+            sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2)
+            NODES_ARRAY=()
+            while IFS= read -r line; do
+                [[ -n "$line" ]] && NODES_ARRAY+=("$line")
+            done <<<"$sorted_output"
+        fi
+
         clear
         local FORMAT_STR="%-4s | %-4s | %-12s | %-14s | %-19s | %-5s"
 
