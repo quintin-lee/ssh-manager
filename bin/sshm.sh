@@ -26,6 +26,13 @@ RESET=$'\033[0m'
 
 CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/../lib/yaml_parser.sh" ]]; then
+    source "${SCRIPT_DIR}/../lib/yaml_parser.sh"
+elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
+    source "/usr/local/share/ssh-manager/yaml_parser.sh"
+fi
+
 # --- 1. 环境初始化（优化权限处理）---
 init_env() {
     # First check if user has personal config file
@@ -151,123 +158,15 @@ init_env() {
     fi
 }
 
-# --- 2. 简化版 YAML 解析（核心修复）---
-read_node_info() {
-    local id=$1
-    unset NODE_NAME NODE_GROUP NODE_HOST NODE_PORT NODE_USER NODE_TYPE NODE_PASS NODE_KEYPATH
+# --- 2. 简化版 YAML 解析 ---
+# Functions now sourced from lib/yaml_parser.sh
+# read_node_info <config_file> <id>
+# get_all_nodes <config_file> [filter_key] [group_filter]
 
-    local in_node=0
-    local current_id=0
-
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-            ((current_id++))
-            in_node=1
-            if [[ $current_id -eq $id ]]; then
-                NODE_NAME=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
-            else
-                in_node=0
-            fi
-            continue
-        fi
-
-        if [[ $in_node -eq 1 && $current_id -eq $id ]]; then
-            if [[ "$line" =~ ^[[:space:]]*group:[[:space:]]* ]]; then
-                NODE_GROUP=$(echo "$line" | sed 's/^[[:space:]]*group:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*host:[[:space:]]* ]]; then
-                NODE_HOST=$(echo "$line" | sed 's/^[[:space:]]*host:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*port:[[:space:]]* ]]; then
-                NODE_PORT=$(echo "$line" | sed 's/^[[:space:]]*port:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*user:[[:space:]]* ]]; then
-                NODE_USER=$(echo "$line" | sed 's/^[[:space:]]*user:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]* ]]; then
-                NODE_TYPE=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*pass:[[:space:]]* ]]; then
-                NODE_PASS=$(echo "$line" | sed 's/^[[:space:]]*pass:[[:space:]]*//' | sed 's/^["'\'']//;s/["'\'']$//')
-            elif [[ "$line" =~ ^[[:space:]]*keypath:[[:space:]]* ]]; then
-                NODE_KEYPATH=$(echo "$line" | sed 's/^[[:space:]]*keypath:[[:space:]]*//' | sed 's/^["'\'']//;s/["'\'']$//')
-            elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-                break
-            fi
-        fi
-    done <"$CONF"
-
-    NODE_GROUP=${NODE_GROUP:-Default}
-    NODE_PORT=${NODE_PORT:-22}
-    NODE_TYPE=${NODE_TYPE:-pass}
-}
-
-# --- 3. 获取所有节点列表 ---
-get_all_nodes() {
-    local filter_key="${1,,}"
-    local group_filter="$2"
-    unset NODES_ARRAY
-    NODES_ARRAY=()
-
-    local current_id=0
-    local node_name=""
-    local node_group=""
-    local node_host=""
-    local node_port=""
-    local node_type=""
-    local in_node=0
-
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-            if [[ $in_node -eq 1 && -n "$node_name" ]]; then
-                local match=1
-                if [[ -n "$filter_key" && ! "${node_name,,}" =~ $filter_key && ! "$node_host" =~ $filter_key ]]; then
-                    match=0
-                fi
-                if [[ -n "$group_filter" && "$node_group" != "$group_filter" ]]; then
-                    match=0
-                fi
-                if [[ $match -eq 1 ]]; then
-                    NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type")
-                fi
-            fi
-
-            ((current_id++))
-            in_node=1
-            node_name=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
-            node_group="Default"
-            node_host=""
-            node_port="22"
-            node_type="pass"
-            continue
-        fi
-
-        if [[ $in_node -eq 1 ]]; then
-            if [[ "$line" =~ ^[[:space:]]*group:[[:space:]]* ]]; then
-                node_group=$(echo "$line" | sed 's/^[[:space:]]*group:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*host:[[:space:]]* ]]; then
-                node_host=$(echo "$line" | sed 's/^[[:space:]]*host:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*port:[[:space:]]* ]]; then
-                node_port=$(echo "$line" | sed 's/^[[:space:]]*port:[[:space:]]*//')
-            elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]* ]]; then
-                node_type=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
-            fi
-        fi
-    done <"$CONF"
-
-    if [[ $in_node -eq 1 && -n "$node_name" ]]; then
-        local match=1
-        if [[ -n "$filter_key" && ! "${node_name,,}" =~ $filter_key && ! "$node_host" =~ $filter_key ]]; then
-            match=0
-        fi
-        if [[ -n "$group_filter" && "$node_group" != "$group_filter" ]]; then
-            match=0
-        fi
-        if [[ $match -eq 1 ]]; then
-            NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type")
-        fi
-    fi
-}
-
-# --- 4. 核心连接逻辑 ---
+# --- 3. 核心连接逻辑 ---
 ssh_connect() {
     local id=$1
-    read_node_info "$id"
+    read_node_info "$CONF" "$id"
 
     if [[ -z "$NODE_HOST" ]]; then
         echo -e "${RED}无效 ID: $id (未找到节点)${RESET}"
@@ -336,7 +235,7 @@ list_and_choose() {
     local mode="$3"
 
     while true; do
-        get_all_nodes "$filter_key" "$group_filter"
+        get_all_nodes "$CONF" "$filter_key" "$group_filter"
 
         # 优化：按分组聚合排序，防止同一分组被拆分显示
         # Sort by Group (field 3) then Name (field 2)
@@ -455,7 +354,7 @@ list_and_choose() {
 # --- 6. 删除逻辑 ---
 perform_delete() {
     local id=$1
-    read_node_info "$id"
+    read_node_info "$CONF" "$id"
 
     if [[ -z "$NODE_NAME" ]]; then
         echo -e "${RED}无效 ID: $id${RESET}"

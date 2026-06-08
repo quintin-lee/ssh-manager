@@ -1,0 +1,25 @@
+nodes:
+  - name: server1
+    group: Production
+    host: 192.168.1.10
+    port: 22
+    user: root
+    type: pass
+    pass: "secret123"
+    keypath: ""
+  - name: server2
+    group: Staging
+    host: 10.0.0.5
+    port: 2222
+    user: admin
+    type: key
+    pass: ""
+    keypath: "/home/admin/.ssh/id_rsa"
+  - name: server3
+    group: Production
+    host: db.internal
+    port: 22
+    user: dbuser
+    type: pass
+    pass: "p@ss!with#special$chars"
+    keypath: ""
