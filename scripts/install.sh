@@ -46,12 +46,14 @@ DEFAULT_BIN_PATH="/usr/local/bin/sshm"
 DEFAULT_CONF_DIR="/etc/ssh-manager"
 DEFAULT_DOC_PATH="/usr/local/share/doc/$PKG_NAME"
 DEFAULT_LICENSE_PATH="/usr/local/share/licenses/$PKG_NAME"
+DEFAULT_LIB_PATH="/usr/local/share/ssh-manager"
 
 # 允许通过环境变量自定义安装路径
 BIN_PATH="${INSTALL_PATH:-$DEFAULT_BIN_PATH}"
 CONF_DIR="${CONFIG_DIR:-$DEFAULT_CONF_DIR}"
 DOC_PATH="${DOC_DIR:-$DEFAULT_DOC_PATH}"
 LICENSE_PATH="${LICENSE_DIR:-$DEFAULT_LICENSE_PATH}"
+LIB_PATH="${LIB_DIR:-$DEFAULT_LIB_PATH}"
 CONF_TEMPLATE_PATH="$CONF_DIR/config.yaml.example"
 
 log_info "SSH Manager $VERSION 安装脚本开始执行"
@@ -159,6 +161,7 @@ log_info "创建目录结构..."
 mkdir -p "$CONF_DIR"
 mkdir -p "$(dirname "$DOC_PATH")"
 mkdir -p "$(dirname "$LICENSE_PATH")"
+mkdir -p "$LIB_PATH"
 
 # 安装主程序
 log_info "安装主程序..."
@@ -172,6 +175,20 @@ if cp "bin/sshm.sh" "$BIN_PATH"; then
 else
     log_error "复制主程序失败"
     exit 1
+fi
+
+# 安装库文件
+log_info "安装库文件..."
+if [ -f "lib/yaml_parser.sh" ]; then
+    if cp "lib/yaml_parser.sh" "$LIB_PATH/yaml_parser.sh"; then
+        chmod 644 "$LIB_PATH/yaml_parser.sh"
+        log_success "库文件已安装到 $LIB_PATH/yaml_parser.sh"
+    else
+        log_error "复制库文件失败"
+        exit 1
+    fi
+else
+    log_warn "库文件 lib/yaml_parser.sh 不存在，跳过"
 fi
 
 # 安装配置模板
@@ -298,6 +315,12 @@ if rm -f /usr/local/bin/ssh-manager-uninstall; then
 else
     log_warn "删除卸载脚本失败或文件不存在"
 fi
+
+# 删除库文件
+if rm -f "$LIB_PATH/yaml_parser.sh" 2>/dev/null; then
+    log_success "已删除库文件"
+fi
+rmdir "$LIB_PATH" 2>/dev/null || true
 
 # 删除配置目录（如果为空）
 if [ -d "$CONF_DIR" ]; then

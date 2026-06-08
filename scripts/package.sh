@@ -54,11 +54,14 @@ echo "Starting build process for ${APP_NAME} v${VERSION}..."
 echo "Preparing staging area..."
 mkdir -p "${STAGING_DIR}/usr/bin"
 mkdir -p "${STAGING_DIR}/etc/ssh-manager"
+mkdir -p "${STAGING_DIR}/usr/share/ssh-manager"
 mkdir -p "${STAGING_DIR}/usr/share/doc/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/licenses/${APP_NAME}"
 
 cp "${PROJECT_ROOT}/bin/sshm.sh" "${STAGING_DIR}/usr/bin/sshm"
 chmod 755 "${STAGING_DIR}/usr/bin/sshm"
+cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
+chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml"
 chmod 644 "${STAGING_DIR}/etc/ssh-manager/config.yaml"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml.default"
@@ -122,12 +125,15 @@ ${DESCRIPTION}
 %install
 mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/etc/ssh-manager
+mkdir -p %{buildroot}/usr/share/ssh-manager
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/bin/* %{buildroot}/usr/bin/
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/etc/ssh-manager/* %{buildroot}/etc/ssh-manager/
+cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/ssh-manager/* %{buildroot}/usr/share/ssh-manager/
 %files
 /usr/bin/sshm
 %config(noreplace) /etc/ssh-manager/config.yaml
 /etc/ssh-manager/config.yaml.default
+/usr/share/ssh-manager/yaml_parser.sh
 EOF
         rpmbuild --define "_topdir ${RPM_ROOT}" -bb "${RPM_ROOT}/SPECS/${APP_NAME}.spec"
         find "${RPM_ROOT}/RPMS" -name "*.rpm" -exec cp {} "${OUTPUT_DIR}/" \;

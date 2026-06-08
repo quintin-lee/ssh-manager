@@ -41,12 +41,15 @@ prepare() {
 package() {
     mkdir -p "${pkgdir}/usr/bin"
     mkdir -p "${pkgdir}/etc/ssh-manager"
+    mkdir -p "${pkgdir}/usr/share/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/doc/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/licenses/ssh-manager"
 
     cp "${startdir}/bin/sshm.sh" "${pkgdir}/usr/bin/sshm"
-    # 设置可执行权限（关键：确保打包后的脚本有执行权限）
     chmod 755 "${pkgdir}/usr/bin/sshm"
+
+    cp "${startdir}/lib/yaml_parser.sh" "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
+    chmod 644 "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
 
     # Copy config file to /etc/ssh-manager/ as the default system config
     cp "${startdir}/conf/config.yaml" "${pkgdir}/etc/ssh-manager/config.yaml"

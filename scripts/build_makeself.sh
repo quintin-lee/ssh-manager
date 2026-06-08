@@ -21,10 +21,12 @@ echo "Preparing payload..."
 # We maintain the directory structure inside the payload for clarity
 mkdir -p "${PAYLOAD_DIR}/bin"
 mkdir -p "${PAYLOAD_DIR}/conf"
+mkdir -p "${PAYLOAD_DIR}/lib"
 mkdir -p "${PAYLOAD_DIR}/doc"
 
 cp "${PROJECT_ROOT}/bin/sshm.sh" "${PAYLOAD_DIR}/bin/sshm"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${PAYLOAD_DIR}/conf/config.yaml"
+cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${PAYLOAD_DIR}/lib/yaml_parser.sh"
 [ -f "${PROJECT_ROOT}/README.md" ] && cp "${PROJECT_ROOT}/README.md" "${PAYLOAD_DIR}/doc/README.md"
 
 # 3. Create the Internal Install Script
@@ -59,6 +61,13 @@ chmod 755 "${INSTALL_BIN}"
 # Update config path in the installed script to point to /etc/ssh-manager/config.yaml
 sed -i 's#CONF="${SSH_MANAGER_CONFIG:-config.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${INSTALL_BIN}"
 
+# Install library
+echo "Installing library..."
+INSTALL_LIB_DIR="/usr/local/share/ssh-manager"
+mkdir -p "${INSTALL_LIB_DIR}"
+cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
+chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
+
 # 2. Install Config
 echo "Installing configuration..."
 mkdir -p "${INSTALL_CONF_DIR}"
@@ -91,6 +100,8 @@ if [ "\$(id -u)" -ne 0 ]; then
     exit 1
 fi
 rm -f ${INSTALL_BIN}
+rm -f ${INSTALL_LIB_DIR}/yaml_parser.sh
+rmdir ${INSTALL_LIB_DIR} 2>/dev/null || true
 rm -f /usr/local/bin/sshm-uninstall
 # Optional: remove config dir?
 # rm -rf ${INSTALL_CONF_DIR}
