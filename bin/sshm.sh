@@ -171,38 +171,63 @@ ssh_connect() {
     if [[ -z "$NODE_HOST" ]]; then
         echo -e "${RED}无效 ID: $id (未找到节点)${RESET}"
         sleep 1
-        return
+        return 1
     fi
 
     echo -e "${YELLOW}>>> 连接中: $NODE_NAME ($NODE_HOST)...${RESET}"
 
-    # 使用环境变量传递敏感信息，彻底解决特殊字符（如 ! $ " ' 等）的转义问题
     export SSH_PASS="$NODE_PASS"
     export SSH_KEY="$NODE_KEYPATH"
     export SSH_HOST="$NODE_HOST"
     export SSH_PORT="$NODE_PORT"
     export SSH_USER="$NODE_USER"
 
+    local exit_code=0
+
     if [[ "$NODE_TYPE" == "key" ]]; then
         expect -c "
             set timeout 30
-            # 从环境变量读取配置，避免 Tcl/Shell 转义地狱
             set pass \$env(SSH_PASS)
             set key \$env(SSH_KEY)
             set host \$env(SSH_HOST)
             set port \$env(SSH_PORT)
             set user \$env(SSH_USER)
+            set exit_code 0
 
-            spawn ssh -o StrictHostKeyChecking=no -i \"\$key\" -p \$port \$user@\$host
+            spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i \"\$key\" -p \$port \$user@\$host
             expect {
-                \"*password:*\" { send -- \"\$pass\r\" }
-                \"*passphrase*\" { send -- \"\$pass\r\" }
+                \"*password:*\" {
+                    send -- \"\$pass\r\"
+                    expect {
+                        \"*password:*\" { puts \"密码错误\"; set exit_code 2 }
+                        \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
+                        \"*Last login*\" { }
+                        timeout { puts \"登录后超时\"; set exit_code 1 }
+                    }
+                }
+                \"*passphrase*\" {
+                    send -- \"\$pass\r\"
+                    expect {
+                        \"*passphrase*\" { puts \"密钥短语错误\"; set exit_code 2 }
+                        \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
+                        \"*Last login*\" { }
+                        timeout { puts \"登录后超时\"; set exit_code 1 }
+                    }
+                }
                 \"*yes/no*\" { send \"yes\r\"; exp_continue }
-                timeout { puts \"连接超时\"; exit 1 }
-                eof { catch wait result; exit [lindex \$result 3] }
+                \"*Connection refused*\" { puts \"连接被拒绝\"; set exit_code 3 }
+                \"*No route to host*\" { puts \"主机不可达\"; set exit_code 4 }
+                \"*Connection timed out*\" { puts \"连接超时\"; set exit_code 1 }
+                \"*Host key verification failed*\" { puts \"主机密钥验证失败\"; set exit_code 5 }
+                \"*Could not resolve hostname*\" { puts \"无法解析主机名\"; set exit_code 6 }
+                timeout { puts \"连接超时\"; set exit_code 1 }
+                eof { catch wait result; set exit_code [lindex \$result 3] }
             }
-            interact
-            catch wait result; exit [lindex \$result 3]
+            if {\$exit_code == 0} {
+                interact
+                catch wait result; set exit_code [lindex \$result 3]
+            }
+            exit \$exit_code
         "
     else
         expect -c "
@@ -211,21 +236,39 @@ ssh_connect() {
             set host \$env(SSH_HOST)
             set port \$env(SSH_PORT)
             set user \$env(SSH_USER)
+            set exit_code 0
 
-            spawn ssh -o StrictHostKeyChecking=no -p \$port \$user@\$host
+            spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -p \$port \$user@\$host
             expect {
-                \"*password:*\" { send -- \"\$pass\r\" }
+                \"*password:*\" {
+                    send -- \"\$pass\r\"
+                    expect {
+                        \"*password:*\" { puts \"密码错误\"; set exit_code 2 }
+                        \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
+                        \"*Last login*\" { }
+                        timeout { puts \"登录后超时\"; set exit_code 1 }
+                    }
+                }
                 \"*yes/no*\" { send \"yes\r\"; exp_continue }
-                timeout { puts \"连接超时\"; exit 1 }
-                eof { catch wait result; exit [lindex \$result 3] }
+                \"*Connection refused*\" { puts \"连接被拒绝\"; set exit_code 3 }
+                \"*No route to host*\" { puts \"主机不可达\"; set exit_code 4 }
+                \"*Connection timed out*\" { puts \"连接超时\"; set exit_code 1 }
+                \"*Host key verification failed*\" { puts \"主机密钥验证失败\"; set exit_code 5 }
+                \"*Could not resolve hostname*\" { puts \"无法解析主机名\"; set exit_code 6 }
+                timeout { puts \"连接超时\"; set exit_code 1 }
+                eof { catch wait result; set exit_code [lindex \$result 3] }
             }
-            interact
-            catch wait result; exit [lindex \$result 3]
+            if {\$exit_code == 0} {
+                interact
+                catch wait result; set exit_code [lindex \$result 3]
+            }
+            exit \$exit_code
         "
     fi
+    exit_code=$?
 
-    # 清理环境变量
     unset SSH_PASS SSH_KEY SSH_HOST SSH_PORT SSH_USER
+    return $exit_code
 }
 
 # --- 5. 列表与交互界面（终极修复版）---
@@ -333,8 +376,18 @@ list_and_choose() {
                     local target_node=${display_nodes[$((input - 1))]}
                     local original_id=$(echo "$target_node" | cut -d'|' -f1)
                     ssh_connect "$original_id"
-                    if [[ $? -ne 0 ]]; then
-                        echo -e "${RED}连接异常退出，按任意键返回...${RESET}"
+                    local conn_status=$?
+                    case $conn_status in
+                        0) ;;
+                        1) echo -e "${RED}连接超时，按任意键返回...${RESET}" ;;
+                        2) echo -e "${RED}认证失败（密码或密钥错误），按任意键返回...${RESET}" ;;
+                        3) echo -e "${RED}连接被拒绝（目标主机拒绝连接），按任意键返回...${RESET}" ;;
+                        4) echo -e "${RED}主机不可达，按任意键返回...${RESET}" ;;
+                        5) echo -e "${RED}主机密钥验证失败，按任意键返回...${RESET}" ;;
+                        6) echo -e "${RED}无法解析主机名，按任意键返回...${RESET}" ;;
+                        *) echo -e "${RED}连接异常退出 ($conn_status)，按任意键返回...${RESET}" ;;
+                    esac
+                    if [[ $conn_status -ne 0 ]]; then
                         read -n 1 -s -r
                     fi
                 else

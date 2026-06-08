@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bats
+        run: |
+          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Lint scripts
+        run: |
+          shellcheck bin/sshm.sh scripts/*.sh lib/*.sh
+
+      - name: Run tests
+        run: |
+          bats tests/
+
+      - name: Syntax check
+        run: |
+          bash -n bin/sshm.sh
+          for f in scripts/*.sh lib/*.sh; do bash -n "$f" || exit 1; done
+
+      - name: Check version consistency
+        run: |
+          VERSION_FILE=$(cat VERSION)
+          echo "VERSION file: $VERSION_FILE"
+          grep -q "v${VERSION_FILE}" bin/sshm.sh && echo "Version in sshm.sh matches" || echo "WARNING: version mismatch"
