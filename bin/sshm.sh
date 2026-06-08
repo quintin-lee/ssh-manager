@@ -429,7 +429,7 @@ perform_delete() {
 
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-            ((current_id++))
+            current_id=$((current_id + 1))
             if [[ $current_id -eq $id ]]; then
                 skip=1
                 in_node=1
@@ -465,6 +465,25 @@ perform_delete() {
 }
 
 # --- 7. 添加节点功能 ---
+sanitize_yaml_value() {
+    local val="$1"
+    local need_quote=0
+
+    if [[ "$val" == *:* || "$val" == *\#* || "$val" == *\"* || "$val" == *\\* ]]; then
+        need_quote=1
+    elif [[ "$val" =~ ^[[:space:]] || "$val" =~ [[:space:]]$ ]]; then
+        need_quote=1
+    fi
+
+    if [[ "$need_quote" -eq 1 ]]; then
+        val="${val//\\/\\\\}"
+        val="${val//\"/\\\"}"
+        echo "\"$val\""
+    else
+        echo "$val"
+    fi
+}
+
 add_node() {
     echo -e "\n${BLUE}[添加新节点]${RESET}"
 
@@ -545,11 +564,11 @@ add_node() {
     sed_i -e '$a\' "$CONF" 2>/dev/null
 
     cat >>"$CONF" <<EOF
-  - name: $n
-    group: $g
-    host: $h
+  - name: $(sanitize_yaml_value "$n")
+    group: $(sanitize_yaml_value "$g")
+    host: $(sanitize_yaml_value "$h")
     port: $p
-    user: $u
+    user: $(sanitize_yaml_value "$u")
     type: $t
     pass: "$ps"
     keypath: "$kp"
@@ -688,6 +707,47 @@ import_config() {
 }
 
 # --- 9. 主循环 ---
+
+VERSION="0.2"
+
+for arg in "$@"; do
+    case "$arg" in
+        --help|-h)
+            echo "SSH Manager v${VERSION} - SSH connection management tool"
+            echo ""
+            echo "Usage: sshm [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --help, -h        Show this help message"
+            echo "  --version, -v     Show version information"
+            echo "  --config <path>   Use specified config file"
+            echo ""
+            echo "Environment variables:"
+            echo "  SSH_MANAGER_CONFIG    Path to config file"
+            exit 0
+            ;;
+        --version|-v)
+            echo "SSH Manager v${VERSION}"
+            exit 0
+            ;;
+        --config)
+            shift
+            if [[ -n "${1:-}" ]]; then
+                export SSH_MANAGER_CONFIG="$1"
+                shift 2>/dev/null || true
+            else
+                echo -e "${RED}Error: --config requires a path argument${RESET}"
+                exit 1
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $arg${RESET}"
+            echo "Use --help for usage information."
+            exit 1
+            ;;
+    esac
+done
+
 init_env
 
 # 显示帮助信息

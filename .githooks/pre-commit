@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running pre-commit checks..."
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+PASSED=true
+
+if command -v shellcheck >/dev/null 2>&1; then
+    echo "[shellcheck] Checking scripts..."
+    shellcheck bin/sshm.sh scripts/*.sh lib/*.sh || PASSED=false
+else
+    echo "[shellcheck] SKIPPED (not installed)"
+fi
+
+echo "[syntax] Checking bash syntax..."
+for f in bin/sshm.sh scripts/*.sh lib/*.sh; do
+    if ! bash -n "$f" 2>/dev/null; then
+        echo "ERROR: $f has syntax error"
+        PASSED=false
+    fi
+done
+
+echo "[bats] Running tests..."
+BATS_BIN=""
+for candidate in bats /tmp/bats-core/bin/bats /usr/local/bin/bats; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        BATS_BIN="$candidate"
+        break
+    fi
+done
+
+if [[ -n "$BATS_BIN" ]]; then
+    "$BATS_BIN" tests/ || PASSED=false
+else
+    echo "[bats] SKIPPED (not installed)"
+fi
+
+if [[ "$PASSED" == "true" ]]; then
+    echo "All checks passed!"
+else
+    echo "Some checks failed. Please fix before committing."
+    exit 1
+fi
