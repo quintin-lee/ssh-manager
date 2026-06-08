@@ -5,7 +5,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-APP_NAME="ssh-manager"
+# App name derived from project directory
+# Build configuration (values used in output naming)
 VERSION=$(cat "${PROJECT_ROOT}/VERSION" 2>/dev/null || echo "0.2")
 BUILD_DIR="${PROJECT_ROOT}/build/makeself"
 PAYLOAD_DIR="${BUILD_DIR}/payload"

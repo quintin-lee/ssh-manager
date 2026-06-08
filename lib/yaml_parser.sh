@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC2034  # Variables are intentionally exported for callers
 read_node_info() {
     local conf="$1"
     local id=$2

@@ -73,8 +73,7 @@ check_dependency() {
         log_error "缺少依赖: $cmd"
         if [ -n "$package_name" ]; then
             log_info "请先安装 $package_name 包，例如:"
-            if [ "xiputils" = "x"$package_name ]
-	    then
+            if [[ "$package_name" == "iputils" ]]; then
                 log_info "  Debian/Ubuntu: sudo apt-get install ${package_name}-ping"
             else
                 log_info "  Debian/Ubuntu: sudo apt-get install ${package_name}"

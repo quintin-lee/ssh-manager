@@ -12,9 +12,7 @@ RELEASE="1"
 ARCH="all"
 DESCRIPTION="Manager ssh connection in your terminal!"
 LICENSE="MIT"
-URL="https://github.com/quintin-lee/ssh-manager"
 MAINTAINER="quintin <quintin@example.com>"
-VENDOR=""
 
 # Directories
 BUILD_DIR="${PROJECT_ROOT}/build"

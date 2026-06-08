@@ -37,7 +37,8 @@ fi
 init_env() {
     # First check if user has personal config file
     local user_conf="${HOME}/.config/ssh-manager/config.yaml"
-    local user_conf_dir="$(dirname "$user_conf")"
+    local user_conf_dir
+    user_conf_dir="$(dirname "$user_conf")"
 
     # Create user config directory if it doesn't exist
     if [[ ! -d "$user_conf_dir" ]]; then
@@ -49,7 +50,8 @@ init_env() {
         CONF="$user_conf"
     fi
 
-    local conf_dir=$(dirname "$CONF")
+    local conf_dir
+    conf_dir=$(dirname "$CONF")
 
     # Check if config is in system directory like /etc
     if [[ "$CONF" == /etc/* ]]; then
@@ -117,8 +119,10 @@ init_env() {
     # 优化的权限设置逻辑 - 适配不同目录和用户权限
     # 1. 先检查当前用户是否是文件所有者
     if [[ -f "$CONF" ]]; then
-        local file_owner=$(stat -c "%U" "$CONF" 2>/dev/null || stat -f "%Su" "$CONF" 2>/dev/null)
-        local current_user=$(whoami)
+        local file_owner
+        file_owner=$(stat -c "%U" "$CONF" 2>/dev/null || stat -f "%Su" "$CONF" 2>/dev/null)
+        local current_user
+        current_user=$(whoami)
 
         # 2. 判断配置文件路径是否在系统目录（/etc）下
         if [[ "$CONF" == /etc/* ]]; then
@@ -327,7 +331,8 @@ list_and_choose() {
             fi
 
             # ID列：先格式化再加颜色
-            local id_str=$(printf "%-4d" $display_id)
+            local id_str
+            id_str=$(printf "%-4d" $display_id)
             id_str="${GREEN}${id_str}${RESET}"
 
             # 节点行：用 echo -e 确保颜色转义
@@ -358,7 +363,8 @@ list_and_choose() {
         if [[ "$mode" == "delete" ]]; then
             if [[ "$input" =~ ^[0-9]+$ && $input -ge 1 && $input -lt $display_id ]]; then
                 local target_node=${display_nodes[$((input - 1))]}
-                local original_id=$(echo "$target_node" | cut -d'|' -f1)
+                local original_id
+                original_id=$(echo "$target_node" | cut -d'|' -f1)
                 perform_delete "$original_id"
                 continue
             else
@@ -374,7 +380,8 @@ list_and_choose() {
             [0-9]*)
                 if [[ $input -ge 1 && $input -lt $display_id ]]; then
                     local target_node=${display_nodes[$((input - 1))]}
-                    local original_id=$(echo "$target_node" | cut -d'|' -f1)
+                    local original_id
+                original_id=$(echo "$target_node" | cut -d'|' -f1)
                     ssh_connect "$original_id"
                     local conn_status=$?
                     case $conn_status in
@@ -422,8 +429,8 @@ perform_delete() {
         return 0
     fi
 
-    local tmp_file=$(mktemp)
-    local in_node=0
+    local tmp_file
+    tmp_file=$(mktemp)
     local current_id=0
     local skip=0
 
@@ -432,18 +439,15 @@ perform_delete() {
             current_id=$((current_id + 1))
             if [[ $current_id -eq $id ]]; then
                 skip=1
-                in_node=1
                 continue
             else
                 skip=0
-                in_node=0
             fi
         fi
 
         if [[ $skip -eq 1 ]]; then
             if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
                 skip=0
-                in_node=0
                 echo "$line" >>"$tmp_file"
             fi
             continue
@@ -561,6 +565,7 @@ add_node() {
         echo ""
     fi
 
+    # shellcheck disable=SC1003  # sed append syntax, not a shell escape
     sed_i -e '$a\' "$CONF" 2>/dev/null
 
     cat >>"$CONF" <<EOF
@@ -771,7 +776,7 @@ show_help() {
     echo ""
     echo -e "${YELLOW}提示: 输入 'q' 或 'Ctrl+C' 可随时退出当前操作${RESET}"
     echo ""
-    read -n 1 -p "按任意键返回主菜单..." dummy
+    read -n 1 -r -p "按任意键返回主菜单..." _
     echo
 }
 

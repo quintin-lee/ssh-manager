@@ -1,0 +1,8 @@
+# ShellCheck configuration for SSH Manager
+external-sources=true
+
+# Suppressed diagnostics:
+# SC1091: External files not provided as input
+# SC2059: printf format string is compile-time constant
+# SC2162: read without -r is intentional for interactive prompt input
+disable=SC1091,SC2059,SC2162

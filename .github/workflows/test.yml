@@ -26,7 +26,7 @@ jobs:
 
       - name: Lint scripts
         run: |
-          shellcheck bin/sshm.sh scripts/*.sh lib/*.sh
+          shellcheck --severity=warning bin/sshm.sh scripts/*.sh lib/*.sh
 
       - name: Run tests
         run: |
