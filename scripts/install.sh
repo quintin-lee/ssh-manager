@@ -38,7 +38,7 @@ cleanup() {
 trap cleanup EXIT SIGINT SIGTERM
 
 # 版本和包名称
-VERSION="0.2"
+VERSION=$(cat "VERSION" 2>/dev/null || echo "0.2")
 PKG_NAME="ssh-manager"
 
 # 默认安装路径

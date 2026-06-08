@@ -1,6 +1,6 @@
-# Maintainer: Your Name <your.email@example.com>
+# Maintainer: quintin <quintin@example.com>
 pkgname="ssh-manager"
-pkgver="0.2"
+pkgver="$(cat VERSION 2>/dev/null || echo "0.2")"
 pkgrel=4  # 升级版本号
 pkgdesc="Manager ssh connection in your terminal!"
 arch=("any")

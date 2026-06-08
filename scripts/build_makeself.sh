@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 APP_NAME="ssh-manager"
-VERSION="0.2"
+VERSION=$(cat "${PROJECT_ROOT}/VERSION" 2>/dev/null || echo "0.2")
 BUILD_DIR="${PROJECT_ROOT}/build/makeself"
 PAYLOAD_DIR="${BUILD_DIR}/payload"
 OUTPUT_FILE="${PROJECT_ROOT}/ssh-manager-${VERSION}.run"

@@ -7,14 +7,14 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration
 APP_NAME="ssh-manager"
-VERSION="0.2"
+VERSION=$(cat "${PROJECT_ROOT}/VERSION" 2>/dev/null || echo "0.2")
 RELEASE="1"
 ARCH="all"
 DESCRIPTION="Manager ssh connection in your terminal!"
 LICENSE="MIT"
-URL="https://github.com/yourusername/ssh-manager"
-MAINTAINER="Your Name <your.email@example.com>"
-VENDOR="Your Company"
+URL="https://github.com/quintin-lee/ssh-manager"
+MAINTAINER="quintin <quintin@example.com>"
+VENDOR=""
 
 # Directories
 BUILD_DIR="${PROJECT_ROOT}/build"
