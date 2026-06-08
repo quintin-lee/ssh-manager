@@ -741,7 +741,7 @@ init_env
 # 显示帮助信息
 show_help() {
     clear
-    echo -e "${CYAN}==== SSH MANAGER v5.9 帮助 ====${RESET}"
+    echo -e "${CYAN}==== SSH MANAGER v0.2 帮助 ====${RESET}"
     echo -e "${GREEN}主菜单快捷键:${RESET}"
     echo "  [Enter]     - 显示节点列表并连接"
     echo "  [/]         - 搜索节点"

@@ -84,10 +84,9 @@ if [ -d doc ]; then
 fi
 
 # 4. Create Uninstaller
-cat > /usr/local/bin/sshm-uninstall << UNINSTALL_EOF
+        cat > /usr/local/bin/sshm-uninstall << UNINSTALL_EOF
 #!/usr/bin/env bash
-if [ "
-$(id -u)" -ne 0 ]; then
+if [ "\$(id -u)" -ne 0 ]; then
     echo "Please run as root."
     exit 1
 fi

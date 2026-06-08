@@ -1,0 +1,21 @@
+# Build artifacts
+build/
+dist/
+pkg/
+ssh-manager*.run
+ssh-manager*.pkg.tar.zst
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor backup files
+*.bak
+*.backup
