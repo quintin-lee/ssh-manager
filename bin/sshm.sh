@@ -202,89 +202,60 @@ ssh_connect() {
     export SSH_PORT="$NODE_PORT"
     export SSH_USER="$NODE_USER"
 
+    local ssh_extra=""
+    local passphrase_branch=""
+    if [[ "$NODE_TYPE" == "key" ]]; then
+        ssh_extra='-i "$key"'
+        passphrase_branch='
+                "*passphrase*" {
+                    send -- "$pass\r"
+                    expect {
+                        "*passphrase*" { puts "密钥短语错误"; set exit_code 2 }
+                        "*Permission denied*" { puts "认证失败"; set exit_code 2 }
+                        "*Last login*" { }
+                        timeout { puts "登录后超时"; set exit_code 1 }
+                    }
+                }'
+    fi
+
     local exit_code=0
 
-    if [[ "$NODE_TYPE" == "key" ]]; then
-        expect -c "
-            set timeout 30
-            set pass \$env(SSH_PASS)
-            set key \$env(SSH_KEY)
-            set host \$env(SSH_HOST)
-            set port \$env(SSH_PORT)
-            set user \$env(SSH_USER)
-            set exit_code 0
+    # shellcheck disable=SC2089,SC2090  # ssh_extra/set_passkey quoted correctly in TCL
+    expect -c "
+        set timeout 30
+        set pass \$env(SSH_PASS)
+        set host \$env(SSH_HOST)
+        set port \$env(SSH_PORT)
+        set user \$env(SSH_USER)
+        set key \$env(SSH_KEY)
+        set exit_code 0
 
-            spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i \"\$key\" -p \$port \$user@\$host
-            expect {
-                \"*password:*\" {
-                    send -- \"\$pass\r\"
-                    expect {
-                        \"*password:*\" { puts \"密码错误\"; set exit_code 2 }
-                        \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
-                        \"*Last login*\" { }
-                        timeout { puts \"登录后超时\"; set exit_code 1 }
-                    }
+        spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ${ssh_extra} -p \$port \$user@\$host
+        expect {
+            \"*password:*\" {
+                send -- \"\$pass\r\"
+                expect {
+                    \"*password:*\" { puts \"密码错误\"; set exit_code 2 }
+                    \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
+                    \"*Last login*\" { }
+                    timeout { puts \"登录后超时\"; set exit_code 1 }
                 }
-                \"*passphrase*\" {
-                    send -- \"\$pass\r\"
-                    expect {
-                        \"*passphrase*\" { puts \"密钥短语错误\"; set exit_code 2 }
-                        \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
-                        \"*Last login*\" { }
-                        timeout { puts \"登录后超时\"; set exit_code 1 }
-                    }
-                }
-                \"*yes/no*\" { send \"yes\r\"; exp_continue }
-                \"*Connection refused*\" { puts \"连接被拒绝\"; set exit_code 3 }
-                \"*No route to host*\" { puts \"主机不可达\"; set exit_code 4 }
-                \"*Connection timed out*\" { puts \"连接超时\"; set exit_code 1 }
-                \"*Host key verification failed*\" { puts \"主机密钥验证失败\"; set exit_code 5 }
-                \"*Could not resolve hostname*\" { puts \"无法解析主机名\"; set exit_code 6 }
-                timeout { puts \"连接超时\"; set exit_code 1 }
-                eof { catch wait result; set exit_code [lindex \$result 3] }
-            }
-            if {\$exit_code == 0} {
-                interact
-                catch wait result; set exit_code [lindex \$result 3]
-            }
-            exit \$exit_code
-        "
-    else
-        expect -c "
-            set timeout 30
-            set pass \$env(SSH_PASS)
-            set host \$env(SSH_HOST)
-            set port \$env(SSH_PORT)
-            set user \$env(SSH_USER)
-            set exit_code 0
-
-            spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -p \$port \$user@\$host
-            expect {
-                \"*password:*\" {
-                    send -- \"\$pass\r\"
-                    expect {
-                        \"*password:*\" { puts \"密码错误\"; set exit_code 2 }
-                        \"*Permission denied*\" { puts \"认证失败\"; set exit_code 2 }
-                        \"*Last login*\" { }
-                        timeout { puts \"登录后超时\"; set exit_code 1 }
-                    }
-                }
-                \"*yes/no*\" { send \"yes\r\"; exp_continue }
-                \"*Connection refused*\" { puts \"连接被拒绝\"; set exit_code 3 }
-                \"*No route to host*\" { puts \"主机不可达\"; set exit_code 4 }
-                \"*Connection timed out*\" { puts \"连接超时\"; set exit_code 1 }
-                \"*Host key verification failed*\" { puts \"主机密钥验证失败\"; set exit_code 5 }
-                \"*Could not resolve hostname*\" { puts \"无法解析主机名\"; set exit_code 6 }
-                timeout { puts \"连接超时\"; set exit_code 1 }
-                eof { catch wait result; set exit_code [lindex \$result 3] }
-            }
-            if {\$exit_code == 0} {
-                interact
-                catch wait result; set exit_code [lindex \$result 3]
-            }
-            exit \$exit_code
-        "
-    fi
+            }${passphrase_branch}
+            \"*yes/no*\" { send \"yes\r\"; exp_continue }
+            \"*Connection refused*\" { puts \"连接被拒绝\"; set exit_code 3 }
+            \"*No route to host*\" { puts \"主机不可达\"; set exit_code 4 }
+            \"*Connection timed out*\" { puts \"连接超时\"; set exit_code 1 }
+            \"*Host key verification failed*\" { puts \"主机密钥验证失败\"; set exit_code 5 }
+            \"*Could not resolve hostname*\" { puts \"无法解析主机名\"; set exit_code 6 }
+            timeout { puts \"连接超时\"; set exit_code 1 }
+            eof { catch wait result; set exit_code [lindex \$result 3] }
+        }
+        if {\$exit_code == 0} {
+            interact
+            catch wait result; set exit_code [lindex \$result 3]
+        }
+        exit \$exit_code
+    "
     exit_code=$?
 
     unset SSH_PASS SSH_KEY SSH_HOST SSH_PORT SSH_USER
@@ -585,7 +556,11 @@ add_node() {
                 continue
             fi
             if [[ -f "$kp" ]]; then
-                break
+                if grep -q "PRIVATE KEY" "$kp" 2>/dev/null || ssh-keygen -l -f "$kp" &>/dev/null; then
+                    break
+                fi
+                _echo "${RED}文件不是有效的SSH私钥，请重新输入${RESET}"
+                continue
             fi
             _echo "${RED}私钥文件不存在，请重新输入${RESET}"
         done
@@ -640,7 +615,11 @@ export_config() {
         _echo "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
         _echo "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
         echo
-        base64 "$CONF" | tr -d '\n'
+        if ! base64 "$CONF" | tr -d '\n'; then
+            _echo "${RED}导出失败：无法读取配置文件${RESET}"
+            sleep 2
+            return 1
+        fi
         _echo "\n------------------------"
         read -n 1 -p "按任意键返回..."
         echo
