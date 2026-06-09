@@ -36,6 +36,14 @@ cat > "${PAYLOAD_DIR}/install.sh" << 'EOF'
 #!/usr/bin/env bash
 set -e
 
+sed_i() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 # Define installation paths
 INSTALL_BIN="/usr/local/bin/sshm"
 INSTALL_CONF_DIR="/etc/ssh-manager"
@@ -60,7 +68,7 @@ cp bin/sshm "${INSTALL_BIN}"
 chmod 755 "${INSTALL_BIN}"
 
 # Update config path in the installed script to point to /etc/ssh-manager/config.yaml
-sed -i 's#CONF="${SSH_MANAGER_CONFIG:-config.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${INSTALL_BIN}"
+sed_i 's#CONF="${SSH_MANAGER_CONFIG:-config.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${INSTALL_BIN}"
 
 # Install library
 echo "Installing library..."

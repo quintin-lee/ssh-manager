@@ -49,10 +49,11 @@ load test_helper
     source "${TEST_DIR}/../lib/yaml_parser.sh"
 
     local config_file
-    config_file="$(load_test_fixture sample_config.yaml)"
+    config_file="$(load_test_fixture missing_group.yaml)"
     read_node_info "$config_file" 1
 
-    [[ "$NODE_GROUP" == "Production" ]]
+    [[ "$NODE_GROUP" == "Default" ]]
+    [[ "$NODE_NAME" == "noGroupNode" ]]
 }
 
 @test "read_node_info defaults missing port to 22" {

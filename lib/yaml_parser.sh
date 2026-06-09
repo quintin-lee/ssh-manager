@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+_trim() {
+    local var="$1"
+    echo "${var%"${var##*[![:space:]]}"}"
+}
+
 # shellcheck disable=SC2034  # Variables are intentionally exported for callers
 read_node_info() {
     local conf="$1"
@@ -55,6 +60,15 @@ read_node_info() {
     NODE_GROUP=${NODE_GROUP:-Default}
     NODE_PORT=${NODE_PORT:-22}
     NODE_TYPE=${NODE_TYPE:-pass}
+
+    NODE_NAME=$(_trim "${NODE_NAME:-}")
+    NODE_GROUP=$(_trim "${NODE_GROUP:-}")
+    NODE_HOST=$(_trim "${NODE_HOST:-}")
+    NODE_PORT=$(_trim "${NODE_PORT:-}")
+    NODE_USER=$(_trim "${NODE_USER:-}")
+    NODE_TYPE=$(_trim "${NODE_TYPE:-}")
+    NODE_PASS=$(_trim "${NODE_PASS:-}")
+    NODE_KEYPATH=$(_trim "${NODE_KEYPATH:-}")
 }
 
 get_all_nodes() {

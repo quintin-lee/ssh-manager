@@ -113,9 +113,11 @@ init_env() {
         fi
 
         if [[ ! -f "$CONF" ]]; then
-            # Create config file in final location
             echo "nodes:" >"$CONF"
             echo -e "${YELLOW}已创建默认配置文件: $CONF${RESET}"
+        elif [[ ! -r "$CONF" ]]; then
+            echo -e "${RED}错误：配置文件 $CONF 不可读${RESET}"
+            exit 1
         fi
     fi
 
