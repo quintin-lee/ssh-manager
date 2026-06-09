@@ -32,6 +32,11 @@ EOF
 }
 
 @test "base64 import detects invalid input" {
+    local os
+    os="$(uname -s)"
+    if [[ "$os" == "Darwin" ]]; then
+        skip "macOS base64 -d is lenient with invalid input"
+    fi
     run bash -c 'echo "not valid base64!!!" | base64 -d >/dev/null 2>&1'
     [[ "$status" -ne 0 ]]
 }
