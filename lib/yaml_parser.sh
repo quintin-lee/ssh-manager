@@ -34,16 +34,18 @@ read_node_info() {
                 NODE_TYPE=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*pass:[[:space:]]* ]]; then
                 NODE_PASS=$(echo "$line" | sed 's/^[[:space:]]*pass:[[:space:]]*//')
-                NODE_PASS="${NODE_PASS#\"}"
-                NODE_PASS="${NODE_PASS%\"}"
-                NODE_PASS="${NODE_PASS#\'}"
-                NODE_PASS="${NODE_PASS%\'}"
+                if [[ "${NODE_PASS:0:1}${NODE_PASS: -1}" == '""' ]]; then
+                    NODE_PASS="${NODE_PASS:1:-1}"
+                elif [[ "${NODE_PASS:0:1}${NODE_PASS: -1}" == "''" ]]; then
+                    NODE_PASS="${NODE_PASS:1:-1}"
+                fi
             elif [[ "$line" =~ ^[[:space:]]*keypath:[[:space:]]* ]]; then
                 NODE_KEYPATH=$(echo "$line" | sed 's/^[[:space:]]*keypath:[[:space:]]*//')
-                NODE_KEYPATH="${NODE_KEYPATH#\"}"
-                NODE_KEYPATH="${NODE_KEYPATH%\"}"
-                NODE_KEYPATH="${NODE_KEYPATH#\'}"
-                NODE_KEYPATH="${NODE_KEYPATH%\'}"
+                if [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH: -1}" == '""' ]]; then
+                    NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
+                elif [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH: -1}" == "''" ]]; then
+                    NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
+                fi
             elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
                 break
             fi
@@ -74,7 +76,7 @@ get_all_nodes() {
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
             if [[ $in_node -eq 1 && -n "$node_name" ]]; then
                 local match=1
-                if [[ -n "$filter_key" && ! "${node_name,,}" =~ $filter_key && ! "$node_host" =~ $filter_key ]]; then
+                if [[ -n "$filter_key" && "${node_name,,}" != *"$filter_key"* && "$node_host" != *"$filter_key"* ]]; then
                     match=0
                 fi
                 if [[ -n "$group_filter" && "$node_group" != "$group_filter" ]]; then

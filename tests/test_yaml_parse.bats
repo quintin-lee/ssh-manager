@@ -52,7 +52,7 @@ load test_helper
     config_file="$(load_test_fixture sample_config.yaml)"
     read_node_info "$config_file" 1
 
-    [[ "$NODE_GROUP" != "Default" ]]
+    [[ "$NODE_GROUP" == "Production" ]]
 }
 
 @test "read_node_info defaults missing port to 22" {

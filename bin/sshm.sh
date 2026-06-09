@@ -31,6 +31,9 @@ if [[ -f "${SCRIPT_DIR}/../lib/yaml_parser.sh" ]]; then
     source "${SCRIPT_DIR}/../lib/yaml_parser.sh"
 elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
     source "/usr/local/share/ssh-manager/yaml_parser.sh"
+else
+    echo -e "${RED}Error: yaml_parser.sh not found. Please reinstall ssh-manager.${RESET}" >&2
+    exit 1
 fi
 
 # --- 1. 环境初始化（优化权限处理）---
@@ -416,8 +419,8 @@ perform_delete() {
     local id=$1
     read_node_info "$CONF" "$id"
 
-    if [[ -z "$NODE_NAME" ]]; then
-        echo -e "${RED}无效 ID: $id${RESET}"
+    if [[ -z "$NODE_HOST" ]]; then
+        echo -e "${RED}无效 ID: $id (未找到节点)${RESET}"
         sleep 1
         return 1
     fi
@@ -547,7 +550,7 @@ add_node() {
     if [[ "$ac" == "2" ]]; then
         t="key"
         while true; do
-            read -p "私钥路径: " kp
+            read -r -p "私钥路径: " kp
             kp=$(echo "$kp" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             if [[ -z "$kp" ]]; then
                 echo -e "${RED}私钥路径不能为空，请重新输入${RESET}"
@@ -575,8 +578,8 @@ add_node() {
     port: $p
     user: $(sanitize_yaml_value "$u")
     type: $t
-    pass: "$ps"
-    keypath: "$kp"
+    pass: $(sanitize_yaml_value "$ps")
+    keypath: $(sanitize_yaml_value "$kp")
 EOF
 
     echo -e "${GREEN}节点 [$n] 已成功添加。${RESET}"
@@ -594,7 +597,7 @@ export_config() {
     echo -e "\n--- ${BLUE}配置导出选项${RESET} ---"
     echo "1) ${YELLOW}屏幕输出 Base64${RESET} (适合复制分享)"
     echo "2) ${YELLOW}保存到文件${RESET} (适合备份)"
-    echo -e "${GREEN}选择导出方式 (1/2): ${RESET}\c"
+    printf "${GREEN}选择导出方式 (1/2): ${RESET}"
 
     read -n 1 export_choice
     echo # 换行
@@ -604,13 +607,13 @@ export_config() {
         echo -e "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
         echo -e "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
         echo
-        base64 -w 0 "$CONF"
+        base64 "$CONF" | tr -d '\n'
         echo -e "\n------------------------"
         read -n 1 -p "按任意键返回..."
         echo
         ;;
     2)
-        read -p "请输入导出文件路径 (默认: ./ssh-manager-config.yaml): " export_file
+        read -r -p "请输入导出文件路径 (默认: ./ssh-manager-config.yaml): " export_file
         export_file=${export_file:-"./ssh-manager-config.yaml"}
 
         if cp "$CONF" "$export_file"; then
@@ -632,7 +635,7 @@ import_config() {
     echo -e "\n--- ${BLUE}配置导入选项${RESET} ---"
     echo "1) ${YELLOW}从 Base64 字符串导入${RESET} (从剪贴板)"
     echo "2) ${YELLOW}从文件导入${RESET} (从备份文件)"
-    echo -e "${GREEN}选择导入方式 (1/2): ${RESET}\c"
+    printf "${GREEN}选择导入方式 (1/2): ${RESET}"
 
     read -n 1 import_choice
     echo # 换行
@@ -680,7 +683,7 @@ import_config() {
             return 0
         fi
 
-        read -p "请输入配置文件路径: " import_file
+        read -r -p "请输入配置文件路径: " import_file
 
         if [[ ! -f "$import_file" ]]; then
             echo -e "${RED}文件不存在: $import_file${RESET}"
@@ -715,8 +718,8 @@ import_config() {
 
 VERSION="0.2"
 
-for arg in "$@"; do
-    case "$arg" in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --help|-h)
             echo "SSH Manager v${VERSION} - SSH connection management tool"
             echo ""
@@ -739,19 +742,21 @@ for arg in "$@"; do
             shift
             if [[ -n "${1:-}" ]]; then
                 export SSH_MANAGER_CONFIG="$1"
-                shift 2>/dev/null || true
+                shift
             else
                 echo -e "${RED}Error: --config requires a path argument${RESET}"
                 exit 1
             fi
             ;;
         *)
-            echo -e "${RED}Unknown option: $arg${RESET}"
+            echo -e "${RED}Unknown option: $1${RESET}"
             echo "Use --help for usage information."
             exit 1
             ;;
     esac
 done
+
+CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
 init_env
 
