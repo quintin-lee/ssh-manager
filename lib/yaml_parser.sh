@@ -124,9 +124,15 @@ get_all_nodes() {
         fi
     done <"$conf"
 
+    node_name=$(_trim "$node_name")
+    node_group=$(_trim "$node_group")
+    node_host=$(_trim "$node_host")
+    node_port=$(_trim "$node_port")
+    node_type=$(_trim "$node_type")
+
     if [[ $in_node -eq 1 && -n "$node_name" ]]; then
         local match=1
-        if [[ -n "$filter_key" && ! "${node_name,,}" =~ $filter_key && ! "$node_host" =~ $filter_key ]]; then
+        if [[ -n "$filter_key" && "${node_name,,}" != *"$filter_key"* && "$node_host" != *"$filter_key"* ]]; then
             match=0
         fi
         if [[ -n "$group_filter" && "$node_group" != "$group_filter" ]]; then

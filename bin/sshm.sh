@@ -3,10 +3,8 @@
 # Date: 2026-01-10
 # Version: 0.2 (Final Stable)
 
-# 强制启用转义序列解析
-shopt -s xpg_echo 2>/dev/null
+_echo() { printf '%b\n' "$*"; }
 
-# 兼容 macOS 的 sed -i 命令
 sed_i() {
     if [[ "$(uname)" == "Darwin" ]]; then
         sed -i '' "$@"
@@ -32,7 +30,7 @@ if [[ -f "${SCRIPT_DIR}/../lib/yaml_parser.sh" ]]; then
 elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
     source "/usr/local/share/ssh-manager/yaml_parser.sh"
 else
-    echo -e "${RED}Error: yaml_parser.sh not found. Please reinstall ssh-manager.${RESET}" >&2
+    _echo "${RED}Error: yaml_parser.sh not found. Please reinstall ssh-manager.${RESET}" >&2
     exit 1
 fi
 
@@ -62,7 +60,7 @@ init_env() {
         if [[ -f "$CONF" ]]; then
             # Just verify the system config file exists and is readable, no write check
             if [[ ! -r "$CONF" ]]; then
-                echo -e "${RED}错误：系统配置文件 $CONF 不可读${RESET}"
+                _echo "${RED}错误：系统配置文件 $CONF 不可读${RESET}"
                 exit 1
             fi
 
@@ -71,12 +69,12 @@ init_env() {
             if [[ ! -f "$user_conf" ]]; then
                 if cp "$CONF" "$user_conf" 2>/dev/null; then
                     chmod 600 "$user_conf" 2>/dev/null || true
-                    echo -e "${GREEN}已复制系统配置到个人目录: $user_conf${RESET}"
+                    _echo "${GREEN}已复制系统配置到个人目录: $user_conf${RESET}"
                     # Switch to use user config instead of system config
                     CONF="$user_conf"
                 else
                     # If can't copy, continue with system config (read-only mode)
-                    echo -e "${YELLOW}使用只读的系统配置文件（无法保存更改）${RESET}"
+                    _echo "${YELLOW}使用只读的系统配置文件（无法保存更改）${RESET}"
 
                     # For read-only system config, just ensure basic structure exists
                     if ! grep -q "^nodes:" "$CONF" 2>/dev/null; then
@@ -97,7 +95,7 @@ init_env() {
             CONF="$user_conf"
 
             echo "nodes:" >"$CONF"
-            echo -e "${YELLOW}已创建个人配置文件: $CONF${RESET}"
+            _echo "${YELLOW}已创建个人配置文件: $CONF${RESET}"
         fi
     else
         # Non-system config path, use original logic
@@ -107,16 +105,16 @@ init_env() {
                 CONF="$user_conf"
                 conf_dir="$user_conf_dir"
             else
-                echo -e "${RED}错误：目录 $conf_dir 不可写${RESET}"
+                _echo "${RED}错误：目录 $conf_dir 不可写${RESET}"
                 exit 1
             fi
         fi
 
         if [[ ! -f "$CONF" ]]; then
             echo "nodes:" >"$CONF"
-            echo -e "${YELLOW}已创建默认配置文件: $CONF${RESET}"
+            _echo "${YELLOW}已创建默认配置文件: $CONF${RESET}"
         elif [[ ! -r "$CONF" ]]; then
-            echo -e "${RED}错误：配置文件 $CONF 不可读${RESET}"
+            _echo "${RED}错误：配置文件 $CONF 不可读${RESET}"
             exit 1
         fi
     fi
@@ -133,13 +131,13 @@ init_env() {
         if [[ "$CONF" == /etc/* ]]; then
             # /etc 目录下：普通用户通常无权限修改权限，仅给出提示
             if [[ "$current_user" != "root" ]]; then
-                echo -e "${YELLOW}提示：配置文件位于 /etc 目录，普通用户无法设置 600 权限，请以 root 身份运行或忽略此提示${RESET}"
+                _echo "${YELLOW}提示：配置文件位于 /etc 目录，普通用户无法设置 600 权限，请以 root 身份运行或忽略此提示${RESET}"
             else
                 # root 用户尝试设置权限
                 if chmod 600 "$CONF"; then
-                    echo -e "${GREEN}已将 /etc 目录下的配置文件权限设置为 600${RESET}"
+                    _echo "${GREEN}已将 /etc 目录下的配置文件权限设置为 600${RESET}"
                 else
-                    echo -e "${RED}错误：root 用户也无法设置 /etc 目录下配置文件的权限为 600${RESET}"
+                    _echo "${RED}错误：root 用户也无法设置 /etc 目录下配置文件的权限为 600${RESET}"
                 fi
             fi
         else
@@ -147,11 +145,11 @@ init_env() {
             if [[ "$file_owner" == "$current_user" ]]; then
                 # 当前用户是文件所有者，尝试设置 600 权限
                 if ! chmod 600 "$CONF"; then
-                    echo -e "${YELLOW}警告：无法设置配置文件权限为 600${RESET}"
+                    _echo "${YELLOW}警告：无法设置配置文件权限为 600${RESET}"
                 fi
             else
                 # 当前用户不是文件所有者，给出明确提示
-                echo -e "${YELLOW}提示：配置文件 $CONF 不属于当前用户 $current_user，无法设置 600 权限${RESET}"
+                _echo "${YELLOW}提示：配置文件 $CONF 不属于当前用户 $current_user，无法设置 600 权限${RESET}"
             fi
         fi
     fi
@@ -162,7 +160,7 @@ init_env() {
         command -v "$tool" &>/dev/null || missing_tools+=("$tool")
     done
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
-        echo -e "${RED}缺少依赖: ${missing_tools[*]}${RESET}"
+        _echo "${RED}缺少依赖: ${missing_tools[*]}${RESET}"
         exit 1
     fi
 }
@@ -178,12 +176,12 @@ ssh_connect() {
     read_node_info "$CONF" "$id"
 
     if [[ -z "$NODE_HOST" ]]; then
-        echo -e "${RED}无效 ID: $id (未找到节点)${RESET}"
+        _echo "${RED}无效 ID: $id (未找到节点)${RESET}"
         sleep 1
         return 1
     fi
 
-    echo -e "${YELLOW}>>> 连接中: $NODE_NAME ($NODE_HOST)...${RESET}"
+    _echo "${YELLOW}>>> 连接中: $NODE_NAME ($NODE_HOST)...${RESET}"
 
     export SSH_PASS="$NODE_PASS"
     export SSH_KEY="$NODE_KEYPATH"
@@ -303,8 +301,8 @@ list_and_choose() {
         clear
         local FORMAT_STR="%-4s | %-4s | %-12s | %-14s | %-19s | %-5s"
 
-        # 表头（直接用 echo -e 确保颜色生效）
-        echo -e "${CYAN}$(printf "${FORMAT_STR}" "St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
+        # 表头（_echo 使用 printf 确保颜色生效）
+        _echo "${CYAN}$(printf "${FORMAT_STR}" "St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
         echo "---------------------------------------------------------------------------"
 
         local display_id=1
@@ -322,8 +320,8 @@ list_and_choose() {
             IFS='|' read -r original_id name group host port type <<<"$node"
 
             if [[ -z "$filter_key" && "$group" != "$current_group" ]]; then
-                # 分组行：echo -e 解析颜色
-                echo -e "${PURPLE}$(printf "${FORMAT_STR}" "" "" "[$group]" "" "" "")${RESET}"
+                # 分组行：_echo 解析颜色
+                _echo "${PURPLE}$(printf "${FORMAT_STR}" "" "" "[$group]" "" "" "")${RESET}"
                 current_group="$group"
             fi
 
@@ -340,8 +338,8 @@ list_and_choose() {
             id_str=$(printf "%-4d" $display_id)
             id_str="${GREEN}${id_str}${RESET}"
 
-            # 节点行：用 echo -e 确保颜色转义
-            echo -e "$(printf "${FORMAT_STR}" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
+            # 节点行：用 _echo 确保颜色转义
+            _echo "$(printf "${FORMAT_STR}" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
             ((display_id++))
         done
 
@@ -352,14 +350,14 @@ list_and_choose() {
             else
                 empty_msg="暂无节点，请先添加"
             fi
-            echo -e "${YELLOW}$(printf "${FORMAT_STR}" "" "" "${empty_msg}" "" "" "")${RESET}"
+            _echo "${YELLOW}$(printf "${FORMAT_STR}" "" "" "${empty_msg}" "" "" "")${RESET}"
         fi
 
         echo "---------------------------------------------------------------------------"
         if [[ "$mode" == "delete" ]]; then
-            echo -e "${RED}[删除模式]${RESET} 输入 ${YELLOW}显示ID${RESET} 执行删除 | ${GREEN}q${RESET} 返回"
+            _echo "${RED}[删除模式]${RESET} 输入 ${YELLOW}显示ID${RESET} 执行删除 | ${GREEN}q${RESET} 返回"
         else
-            echo -e "操作: ${YELLOW}显示ID${RESET} 连接 | ${BLUE}/关键词${RESET} 搜索 | ${GREEN}q${RESET} 返回主菜单"
+            _echo "操作: ${YELLOW}显示ID${RESET} 连接 | ${BLUE}/关键词${RESET} 搜索 | ${GREEN}q${RESET} 返回主菜单"
         fi
 
         read -p ">> " input
@@ -373,7 +371,7 @@ list_and_choose() {
                 perform_delete "$original_id"
                 continue
             else
-                echo -e "${RED}无效的显示ID，请重新输入${RESET}"
+                _echo "${RED}无效的显示ID，请重新输入${RESET}"
                 sleep 1
             fi
         else
@@ -391,24 +389,24 @@ list_and_choose() {
                     local conn_status=$?
                     case $conn_status in
                         0) ;;
-                        1) echo -e "${RED}连接超时，按任意键返回...${RESET}" ;;
-                        2) echo -e "${RED}认证失败（密码或密钥错误），按任意键返回...${RESET}" ;;
-                        3) echo -e "${RED}连接被拒绝（目标主机拒绝连接），按任意键返回...${RESET}" ;;
-                        4) echo -e "${RED}主机不可达，按任意键返回...${RESET}" ;;
-                        5) echo -e "${RED}主机密钥验证失败，按任意键返回...${RESET}" ;;
-                        6) echo -e "${RED}无法解析主机名，按任意键返回...${RESET}" ;;
-                        *) echo -e "${RED}连接异常退出 ($conn_status)，按任意键返回...${RESET}" ;;
+                        1) _echo "${RED}连接超时，按任意键返回...${RESET}" ;;
+                        2) _echo "${RED}认证失败（密码或密钥错误），按任意键返回...${RESET}" ;;
+                        3) _echo "${RED}连接被拒绝（目标主机拒绝连接），按任意键返回...${RESET}" ;;
+                        4) _echo "${RED}主机不可达，按任意键返回...${RESET}" ;;
+                        5) _echo "${RED}主机密钥验证失败，按任意键返回...${RESET}" ;;
+                        6) _echo "${RED}无法解析主机名，按任意键返回...${RESET}" ;;
+                        *) _echo "${RED}连接异常退出 ($conn_status)，按任意键返回...${RESET}" ;;
                     esac
                     if [[ $conn_status -ne 0 ]]; then
                         read -n 1 -s -r
                     fi
                 else
-                    echo -e "${RED}无效的显示ID，请重新输入${RESET}"
+                    _echo "${RED}无效的显示ID，请重新输入${RESET}"
                     sleep 1
                 fi
                 ;;
             *)
-                echo -e "${RED}无效输入，请重新输入${RESET}"
+                _echo "${RED}无效输入，请重新输入${RESET}"
                 sleep 1
                 ;;
             esac
@@ -422,14 +420,14 @@ perform_delete() {
     read_node_info "$CONF" "$id"
 
     if [[ -z "$NODE_HOST" ]]; then
-        echo -e "${RED}无效 ID: $id (未找到节点)${RESET}"
+        _echo "${RED}无效 ID: $id (未找到节点)${RESET}"
         sleep 1
         return 1
     fi
 
     read -p "确认永久删除节点 [$NODE_NAME] ? (y/n): " confirm
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo -e "${YELLOW}取消删除操作${RESET}"
+        _echo "${YELLOW}取消删除操作${RESET}"
         sleep 1
         return 0
     fi
@@ -468,7 +466,7 @@ perform_delete() {
     mv "$tmp_file" "$CONF"
     chmod 600 "$CONF" 2>/dev/null
 
-    echo -e "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
+    _echo "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
     sleep 1
     return 0
 }
@@ -494,7 +492,7 @@ sanitize_yaml_value() {
 }
 
 add_node() {
-    echo -e "\n${BLUE}[添加新节点]${RESET}"
+    _echo "\n${BLUE}[添加新节点]${RESET}"
 
     while true; do
         read -p "名称: " n
@@ -502,7 +500,7 @@ add_node() {
         if [[ -n "$n" ]]; then
             break
         fi
-        echo -e "${RED}名称不能为空，请重新输入${RESET}"
+        _echo "${RED}名称不能为空，请重新输入${RESET}"
     done
 
     read -p "分组 (默认 Default): " g
@@ -515,7 +513,7 @@ add_node() {
         if [[ -n "$h" ]]; then
             break
         fi
-        echo -e "${RED}主机不能为空，请重新输入${RESET}"
+        _echo "${RED}主机不能为空，请重新输入${RESET}"
     done
 
     while true; do
@@ -525,7 +523,7 @@ add_node() {
         if [[ "$p" =~ ^[0-9]+$ && "$p" -ge 1 && "$p" -le 65535 ]]; then
             break
         fi
-        echo -e "${RED}端口无效（必须是 1-65535 之间的数字），请重新输入${RESET}"
+        _echo "${RED}端口无效（必须是 1-65535 之间的数字），请重新输入${RESET}"
     done
 
     while true; do
@@ -534,7 +532,7 @@ add_node() {
         if [[ -n "$u" ]]; then
             break
         fi
-        echo -e "${RED}用户不能为空，请重新输入${RESET}"
+        _echo "${RED}用户不能为空，请重新输入${RESET}"
     done
 
     local t="pass"
@@ -546,7 +544,7 @@ add_node() {
         if [[ "$ac" == "1" || "$ac" == "2" ]]; then
             break
         fi
-        echo -e "${RED}无效选择，请输入 1 或 2${RESET}"
+        _echo "${RED}无效选择，请输入 1 或 2${RESET}"
     done
 
     if [[ "$ac" == "2" ]]; then
@@ -555,13 +553,13 @@ add_node() {
             read -r -p "私钥路径: " kp
             kp=$(echo "$kp" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             if [[ -z "$kp" ]]; then
-                echo -e "${RED}私钥路径不能为空，请重新输入${RESET}"
+                _echo "${RED}私钥路径不能为空，请重新输入${RESET}"
                 continue
             fi
             if [[ -f "$kp" ]]; then
                 break
             fi
-            echo -e "${RED}私钥文件不存在，请重新输入${RESET}"
+            _echo "${RED}私钥文件不存在，请重新输入${RESET}"
         done
         read -s -p "私钥短语 (可选): " ps
         echo ""
@@ -584,19 +582,19 @@ add_node() {
     keypath: $(sanitize_yaml_value "$kp")
 EOF
 
-    echo -e "${GREEN}节点 [$n] 已成功添加。${RESET}"
+    _echo "${GREEN}节点 [$n] 已成功添加。${RESET}"
     sleep 1
 }
 
 # --- 8. 导入导出功能 ---
 export_config() {
     if [[ ! -f "$CONF" ]]; then
-        echo -e "${RED}配置文件不存在${RESET}"
+        _echo "${RED}配置文件不存在${RESET}"
         sleep 1
         return 1
     fi
 
-    echo -e "\n--- ${BLUE}配置导出选项${RESET} ---"
+    _echo "\n--- ${BLUE}配置导出选项${RESET} ---"
     echo "1) ${YELLOW}屏幕输出 Base64${RESET} (适合复制分享)"
     echo "2) ${YELLOW}保存到文件${RESET} (适合备份)"
     printf "${GREEN}选择导出方式 (1/2): ${RESET}"
@@ -606,11 +604,11 @@ export_config() {
 
     case $export_choice in
     1)
-        echo -e "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
-        echo -e "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
+        _echo "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
+        _echo "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
         echo
         base64 "$CONF" | tr -d '\n'
-        echo -e "\n------------------------"
+        _echo "\n------------------------"
         read -n 1 -p "按任意键返回..."
         echo
         ;;
@@ -620,21 +618,21 @@ export_config() {
 
         if cp "$CONF" "$export_file"; then
             chmod 600 "$export_file" 2>/dev/null
-            echo -e "${GREEN}配置已导出到: $export_file${RESET}"
+            _echo "${GREEN}配置已导出到: $export_file${RESET}"
         else
-            echo -e "${RED}导出失败${RESET}"
+            _echo "${RED}导出失败${RESET}"
         fi
         sleep 2
         ;;
     *)
-        echo -e "${RED}无效选择${RESET}"
+        _echo "${RED}无效选择${RESET}"
         sleep 1
         ;;
     esac
 }
 
 import_config() {
-    echo -e "\n--- ${BLUE}配置导入选项${RESET} ---"
+    _echo "\n--- ${BLUE}配置导入选项${RESET} ---"
     echo "1) ${YELLOW}从 Base64 字符串导入${RESET} (从剪贴板)"
     echo "2) ${YELLOW}从文件导入${RESET} (从备份文件)"
     printf "${GREEN}选择导入方式 (1/2): ${RESET}"
@@ -644,18 +642,18 @@ import_config() {
 
     case $import_choice in
     1)
-        echo -e "${BLUE}从 Base64 字符串导入${RESET}"
-        echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
+        _echo "${BLUE}从 Base64 字符串导入${RESET}"
+        _echo "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
         read -p "是否继续? (y/n): " confirm
         if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-            echo -e "${YELLOW}取消导入操作${RESET}"
+            _echo "${YELLOW}取消导入操作${RESET}"
             sleep 1
             return 0
         fi
 
         read -p "粘贴 BASE64 内容: " b64
         if [[ -z "$b64" ]]; then
-            echo -e "${RED}输入为空，导入失败${RESET}"
+            _echo "${RED}输入为空，导入失败${RESET}"
             sleep 1
             return 1
         fi
@@ -663,7 +661,7 @@ import_config() {
         b64_clean=$(echo "$b64" | tr -d '[:space:]')
 
         if ! echo "$b64_clean" | base64 -d >/dev/null 2>&1; then
-            echo -e "${RED}无效的 BASE64 格式${RESET}"
+            _echo "${RED}无效的 BASE64 格式${RESET}"
             sleep 1
             return 1
         fi
@@ -671,16 +669,16 @@ import_config() {
         echo "$b64_clean" | base64 -d >"$CONF"
         chmod 600 "$CONF" 2>/dev/null
 
-        echo -e "${GREEN}配置导入成功${RESET}"
+        _echo "${GREEN}配置导入成功${RESET}"
         sleep 1
         return 0
         ;;
     2)
-        echo -e "${BLUE}从文件导入${RESET}"
-        echo -e "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
+        _echo "${BLUE}从文件导入${RESET}"
+        _echo "${YELLOW}警告：此操作将覆盖现有配置！${RESET}"
         read -p "是否继续? (y/n): " confirm
         if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-            echo -e "${YELLOW}取消导入操作${RESET}"
+            _echo "${YELLOW}取消导入操作${RESET}"
             sleep 1
             return 0
         fi
@@ -688,14 +686,14 @@ import_config() {
         read -r -p "请输入配置文件路径: " import_file
 
         if [[ ! -f "$import_file" ]]; then
-            echo -e "${RED}文件不存在: $import_file${RESET}"
+            _echo "${RED}文件不存在: $import_file${RESET}"
             sleep 2
             return 1
         fi
 
         # Validate that it's a valid YAML file by checking if it has the nodes section
         if ! head -20 "$import_file" | grep -q "nodes:"; then
-            echo -e "${RED}验证失败：文件可能不是有效的SSH管理器配置文件${RESET}"
+            _echo "${RED}验证失败：文件可能不是有效的SSH管理器配置文件${RESET}"
             sleep 2
             return 1
         fi
@@ -703,14 +701,14 @@ import_config() {
         # Copy the file to the current config location
         if cp "$import_file" "$CONF"; then
             chmod 600 "$CONF" 2>/dev/null
-            echo -e "${GREEN}配置从文件导入成功: $import_file${RESET}"
+            _echo "${GREEN}配置从文件导入成功: $import_file${RESET}"
         else
-            echo -e "${RED}导入失败${RESET}"
+            _echo "${RED}导入失败${RESET}"
         fi
         sleep 2
         ;;
     *)
-        echo -e "${RED}无效选择${RESET}"
+        _echo "${RED}无效选择${RESET}"
         sleep 1
         ;;
     esac
@@ -718,7 +716,7 @@ import_config() {
 
 # --- 9. 主循环 ---
 
-VERSION="0.2"
+VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -746,12 +744,12 @@ while [[ $# -gt 0 ]]; do
                 export SSH_MANAGER_CONFIG="$1"
                 shift
             else
-                echo -e "${RED}Error: --config requires a path argument${RESET}"
+                _echo "${RED}Error: --config requires a path argument${RESET}"
                 exit 1
             fi
             ;;
         *)
-            echo -e "${RED}Unknown option: $1${RESET}"
+            _echo "${RED}Unknown option: $1${RESET}"
             echo "Use --help for usage information."
             exit 1
             ;;
@@ -765,8 +763,8 @@ init_env
 # 显示帮助信息
 show_help() {
     clear
-    echo -e "${CYAN}==== SSH MANAGER v0.2 帮助 ====${RESET}"
-    echo -e "${GREEN}主菜单快捷键:${RESET}"
+    _echo "${CYAN}==== SSH MANAGER v0.2 帮助 ====${RESET}"
+    _echo "${GREEN}主菜单快捷键:${RESET}"
     echo "  [Enter]     - 显示节点列表并连接"
     echo "  [/]         - 搜索节点"
     echo "  [a]         - 添加新节点"
@@ -776,12 +774,12 @@ show_help() {
     echo "  [h]         - 显示此帮助"
     echo "  [q]         - 退出程序"
     echo ""
-    echo -e "${GREEN}节点列表快捷键:${RESET}"
+    _echo "${GREEN}节点列表快捷键:${RESET}"
     echo "  [1-9]       - 连接到对应编号的节点"
     echo "  [/] + 关键词 - 搜索节点"
     echo "  [回车]      - 返回上级菜单"
     echo ""
-    echo -e "${YELLOW}提示: 输入 'q' 或 'Ctrl+C' 可随时退出当前操作${RESET}"
+    _echo "${YELLOW}提示: 输入 'q' 或 'Ctrl+C' 可随时退出当前操作${RESET}"
     echo ""
     read -n 1 -r -p "按任意键返回主菜单..." _
     echo
@@ -789,18 +787,18 @@ show_help() {
 
 while true; do
     clear
-    echo -e "${CYAN}==== SSH MANAGER v0.2 (Final Stable) ====${RESET}"
-    echo -e "${GREEN}请选择操作:${RESET}"
-    echo -e "  ${BLUE}[回车]${RESET} 节点列表与连接 ${YELLOW}(List & Connect)${RESET}"
-    echo -e "  ${BLUE}[/]${RESET}    快捷搜索节点 ${YELLOW}(Search)${RESET}"
-    echo -e "  ${BLUE}[a]${RESET}    添加新节点 ${YELLOW}(Add)${RESET}"
-    echo -e "  ${BLUE}[d]${RESET}    删除节点 ${YELLOW}(Delete)${RESET}"
-    echo -e "  ${BLUE}[e]${RESET}    导出配置 ${YELLOW}(Export)${RESET}"
-    echo -e "  ${BLUE}[i]${RESET}    导入配置 ${YELLOW}(Import)${RESET}"
-    echo -e "  ${BLUE}[h]${RESET}    帮助 ${YELLOW}(Help)${RESET}"
-    echo -e "  ${BLUE}[q]${RESET}    退出 ${YELLOW}(Quit)${RESET}"
+    _echo "${CYAN}==== SSH MANAGER v0.2 (Final Stable) ====${RESET}"
+    _echo "${GREEN}请选择操作:${RESET}"
+    _echo "  ${BLUE}[回车]${RESET} 节点列表与连接 ${YELLOW}(List & Connect)${RESET}"
+    _echo "  ${BLUE}[/]${RESET}    快捷搜索节点 ${YELLOW}(Search)${RESET}"
+    _echo "  ${BLUE}[a]${RESET}    添加新节点 ${YELLOW}(Add)${RESET}"
+    _echo "  ${BLUE}[d]${RESET}    删除节点 ${YELLOW}(Delete)${RESET}"
+    _echo "  ${BLUE}[e]${RESET}    导出配置 ${YELLOW}(Export)${RESET}"
+    _echo "  ${BLUE}[i]${RESET}    导入配置 ${YELLOW}(Import)${RESET}"
+    _echo "  ${BLUE}[h]${RESET}    帮助 ${YELLOW}(Help)${RESET}"
+    _echo "  ${BLUE}[q]${RESET}    退出 ${YELLOW}(Quit)${RESET}"
     echo ""
-    echo -e "${YELLOW}提示: 直接按回车将进入节点列表${RESET}"
+    _echo "${YELLOW}提示: 直接按回车将进入节点列表${RESET}"
 
     # 读取单个字符，不需要按回车
     read -n 1 -s choice
@@ -817,7 +815,7 @@ while true; do
     [iI]) import_config ;;
     [hH]) show_help ;;
     [qQ])
-        echo -e "${YELLOW}退出程序...${RESET}"
+        _echo "${YELLOW}退出程序...${RESET}"
         exit 0
         ;;
     [/])
@@ -825,7 +823,7 @@ while true; do
         list_and_choose "$kw"
         ;;
     *)
-        echo -e "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"
+        _echo "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"
         sleep 2
         ;;
     esac

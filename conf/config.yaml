@@ -6,4 +6,4 @@ nodes:
     user: root
     type: pass
     pass: ""
-    keypath: "" 
+    keypath: ""
