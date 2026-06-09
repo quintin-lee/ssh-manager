@@ -26,7 +26,7 @@ nodes:
     keypath: ""
 EOF
 
-    encoded=$(base64 "$CONFIG_FILE" | tr -d '\n')
+    encoded=$(base64 < "$CONFIG_FILE" | tr -d '\n')
     echo "$encoded" | base64 -d > "${WORK_DIR}/decoded.yaml"
     diff "$CONFIG_FILE" "${WORK_DIR}/decoded.yaml"
 }
@@ -49,7 +49,7 @@ nodes:
     keypath: ""
 EOF
 
-    encoded=$(base64 "$CONFIG_FILE" | tr -d '\n')
+    encoded=$(base64 < "$CONFIG_FILE" | tr -d '\n')
     echo "$encoded" | base64 -d > "${WORK_DIR}/decoded.yaml"
 
     original_pass=$(grep 'pass:' "$CONFIG_FILE" | sed 's/.*pass: *//')

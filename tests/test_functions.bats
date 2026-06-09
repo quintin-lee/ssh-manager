@@ -47,7 +47,7 @@ nodes:
 EOF
 
     local encoded
-    encoded=$(base64 "$config" | tr -d '\n')
+    encoded=$(base64 < "$config" | tr -d '\n')
     [[ -n "$encoded" ]]
 
     local decoded="${work}/decoded.yaml"
@@ -59,7 +59,7 @@ EOF
 
 @test "export_config fails gracefully on missing config" {
     local missing="/tmp/nonexistent-sshm-config-$$.yaml"
-    if base64 "$missing" 2>/dev/null; then
+    if base64 < "$missing" 2>/dev/null; then
         false
     else
         true

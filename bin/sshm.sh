@@ -8,6 +8,10 @@ set -o pipefail
 _echo() { printf '%b\n' "$*"; }
 _die()  { _echo "${RED}$*${RESET}" >&2; exit 1; }
 
+_require_bash4() {
+    [[ "${BASH_VERSINFO[0]}" -ge 4 ]] || _die "Bash 4.0+ required (current: ${BASH_VERSION}). Install with: brew install bash"
+}
+
 sed_i() {
     if [[ "$(uname)" == "Darwin" ]]; then
         sed -i '' "$@"
@@ -520,7 +524,7 @@ _interactive_list() {
             ;;
         $'\177'|$'\010')
             if [[ -n "$filter_key" ]]; then
-                filter_key="${filter_key:0:-1}"
+                filter_key="${filter_key%?}"
                 selected_idx=0
             fi
             ;;
@@ -749,7 +753,7 @@ export_config() {
         _echo "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
         _echo "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
         echo
-        if ! base64 "$CONF" | tr -d '\n'; then
+        if ! base64 < "$CONF" | tr -d '\n'; then
             _echo "${RED}导出失败：无法读取配置文件${RESET}"
             sleep 2
             return 1
@@ -866,6 +870,8 @@ import_config() {
 # --- 9. 主循环 ---
 
 VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")
+
+_require_bash4
 
 while [[ $# -gt 0 ]]; do
     case "$1" in

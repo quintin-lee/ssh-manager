@@ -39,16 +39,16 @@ read_node_info() {
                 NODE_TYPE=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*pass:[[:space:]]* ]]; then
                 NODE_PASS=$(echo "$line" | sed 's/^[[:space:]]*pass:[[:space:]]*//')
-                if [[ "${NODE_PASS:0:1}${NODE_PASS: -1}" == '""' ]]; then
+                if [[ "${NODE_PASS:0:1}${NODE_PASS:(-1)}" == '""' ]]; then
                     NODE_PASS="${NODE_PASS:1:-1}"
-                elif [[ "${NODE_PASS:0:1}${NODE_PASS: -1}" == "''" ]]; then
+                elif [[ "${NODE_PASS:0:1}${NODE_PASS:(-1)}" == "''" ]]; then
                     NODE_PASS="${NODE_PASS:1:-1}"
                 fi
             elif [[ "$line" =~ ^[[:space:]]*keypath:[[:space:]]* ]]; then
                 NODE_KEYPATH=$(echo "$line" | sed 's/^[[:space:]]*keypath:[[:space:]]*//')
-                if [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH: -1}" == '""' ]]; then
+                if [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH:(-1)}" == '""' ]]; then
                     NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
-                elif [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH: -1}" == "''" ]]; then
+                elif [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH:(-1)}" == "''" ]]; then
                     NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
                 fi
             elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
