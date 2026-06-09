@@ -304,9 +304,9 @@ _render_list() {
     fi
 
     clear
-    local FORMAT_STR="%-4s | %-4s | %-12s | %-16s | %-21s | %-5s"
+    local FORMAT_STR="%-6s | %-4s | %-12s | %-16s | %-21s | %-5s"
 
-    _echo "${CYAN}$(printf "${FORMAT_STR}" "St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
+    _echo "${CYAN}$(printf "${FORMAT_STR}" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
     echo "-------------------------------------------------------------------------------"
 
     local display_id=1
@@ -325,24 +325,29 @@ _render_list() {
     for node in "${disp_nodes[@]}"; do
         IFS='|' read -r original_id name group host port type <<<"$node"
 
-        local st="●   "
+        local alive="●"
         if _ping_check "$host"; then
-            st="${GREEN}●${RESET}   "
+            alive="${GREEN}●${RESET}"
         else
-            st="${RED}●${RESET}   "
+            alive="${RED}●${RESET}"
+        fi
+
+        local st
+        if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then
+            st="${BLUE}>${RESET} ${alive}   "
+        elif [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]]; then
+            st="${RED}>${RESET} ${alive}   "
+        else
+            st="  ${alive}   "
         fi
 
         local id_str
         id_str=$(printf "%-4d" $display_id)
         id_str="${GREEN}${id_str}${RESET}"
 
-        local line_color=""
-        [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]] && line_color="${BLUE}>${RESET} "
-        [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]] && line_color="${RED}>${RESET} "
-
         local node_line
         node_line="$(printf "${FORMAT_STR}" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
-        _echo "${line_color}${node_line}"
+        _echo "$node_line"
         ((display_id++))
         ((idx++))
     done
