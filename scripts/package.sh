@@ -7,7 +7,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration
 APP_NAME="ssh-manager"
-VERSION=$(cat "${PROJECT_ROOT}/VERSION" 2>/dev/null || echo "0.2")
+APP_VERSION=$(cat "${PROJECT_ROOT}/VERSION" 2>/dev/null || echo "0.2")
 RELEASE="1"
 ARCH="all"
 DESCRIPTION="Manager ssh connection in your terminal!"
@@ -44,7 +44,7 @@ if [ -f /etc/os-release ]; then
 fi
 
 echo "Detected System Type: $OS_TYPE"
-echo "Starting build process for ${APP_NAME} v${VERSION}..."
+echo "Starting build process for ${APP_NAME} v${APP_VERSION}..."
 
 # -----------------------------------------------------------------------------
 # 1. Prepare Staging Area
@@ -54,6 +54,7 @@ mkdir -p "${STAGING_DIR}/usr/bin"
 mkdir -p "${STAGING_DIR}/etc/ssh-manager"
 mkdir -p "${STAGING_DIR}/usr/share/ssh-manager"
 mkdir -p "${STAGING_DIR}/usr/share/doc/${APP_NAME}"
+mkdir -p "${STAGING_DIR}/usr/share/licenses/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/bash-completion/completions"
 mkdir -p "${STAGING_DIR}/usr/share/zsh/site-functions"
 
@@ -89,7 +90,7 @@ build_deb() {
         cp -r "${STAGING_DIR}/"* "${DEB_DIR}/"
         cat > "${DEB_DIR}/DEBIAN/control" << EOF
 Package: ${APP_NAME}
-Version: ${VERSION}-${RELEASE}
+Version: ${APP_VERSION}-${RELEASE}
 Section: utils
 Priority: optional
 Architecture: ${ARCH}
@@ -97,7 +98,7 @@ Depends: expect, bash, sed, gawk, iputils-ping, coreutils
 Maintainer: ${MAINTAINER}
 Description: ${DESCRIPTION}
 EOF
-        dpkg-deb --build "${DEB_DIR}" "${OUTPUT_DIR}/${APP_NAME}_${VERSION}-${RELEASE}_${ARCH}.deb"
+        dpkg-deb --build "${DEB_DIR}" "${OUTPUT_DIR}/${APP_NAME}_${APP_VERSION}-${RELEASE}_${ARCH}.deb"
     else
         echo "Error: 'dpkg-deb' not found. Cannot build .deb package."
         return 1
@@ -109,13 +110,13 @@ build_rpm() {
         echo "Building .rpm package..."
         RPM_ROOT="${BUILD_DIR}/rpmbuild"
         mkdir -p "${RPM_ROOT}"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-        TAR_NAME="${APP_NAME}-${VERSION}"
+        TAR_NAME="${APP_NAME}-${APP_VERSION}"
         mkdir -p "${RPM_ROOT}/BUILD/${TAR_NAME}"
         cp -r "${STAGING_DIR}/"* "${RPM_ROOT}/BUILD/${TAR_NAME}/"
         
         cat > "${RPM_ROOT}/SPECS/${APP_NAME}.spec" << EOF
 Name:       ${APP_NAME}
-Version:    ${VERSION}
+Version:    ${APP_VERSION}
 Release:    ${RELEASE}%{?dist}
 Summary:    ${DESCRIPTION}
 License:    ${LICENSE}
@@ -160,7 +161,7 @@ build_arch() {
 
 build_tarball() {
     echo "Building generic tarball..."
-    TAR_NAME="${APP_NAME}-${VERSION}"
+    TAR_NAME="${APP_NAME}-${APP_VERSION}"
     TAR_DIR="${BUILD_DIR}/${TAR_NAME}"
     mkdir -p "${TAR_DIR}"
     cp -r "${STAGING_DIR}/"* "${TAR_DIR}/"

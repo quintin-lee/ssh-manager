@@ -315,21 +315,25 @@ _render_list() {
     local filter_key="${2,,}"
     local highlight="${3:-0}"
 
-    get_all_nodes "$CONF" "$filter_key" ""
+    local current_mtime
+    current_mtime=$(stat -c %Y "$CONF" 2>/dev/null || stat -f %m "$CONF" 2>/dev/null || echo 0)
+    if [[ "$current_mtime" != "${_CONF_MTIME:-0}" || "$filter_key" != "${_LAST_FILTER:-}" ]]; then
+        get_all_nodes "$CONF" "$filter_key" ""
+        _CONF_MTIME="$current_mtime"
+        _LAST_FILTER="$filter_key"
 
-    if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
-        local sorted_output
-        case "${_SORT_MODE:-group}" in
-            name)  sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k2,2) ;;
-            status)
-                sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}")
-                ;;
-            *)     sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2) ;;
-        esac
-        NODES_ARRAY=()
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && NODES_ARRAY+=("$line")
-        done <<<"$sorted_output"
+        if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
+            local sorted_output
+            case "${_SORT_MODE:-group}" in
+                name)   sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k2,2) ;;
+                status) sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}") ;;
+                *)      sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2) ;;
+            esac
+            NODES_ARRAY=()
+            while IFS= read -r line; do
+                [[ -n "$line" ]] && NODES_ARRAY+=("$line")
+            done <<<"$sorted_output"
+        fi
     fi
 
     local term_w
@@ -876,6 +880,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h            Show this help message"
             echo "  --version, -v         Show version information"
             echo "  --config <path>       Use specified config file"
+            echo "  --validate            Validate config file syntax"
+            echo "  --import-ssh-config f Import Host entries from SSH config"
             echo ""
             echo "Interactive keys:"
             echo "  ↑↓  Navigate   Enter  Connect    type  Filter"
@@ -894,10 +900,77 @@ while [[ $# -gt 0 ]]; do
             shift
             if [[ -n "${1:-}" ]]; then
                 export SSH_MANAGER_CONFIG="$1"
+                CONF="$1"
                 shift
             else
                 _die "Error: --config requires a path argument"
             fi
+            ;;
+        --validate)
+            init_env
+            get_all_nodes "$CONF" "" ""
+            if [[ ${#NODES_ARRAY[@]} -ge 0 ]]; then
+                _echo "${GREEN}配置有效: ${#NODES_ARRAY[@]} 个节点${RESET}"
+            else
+                _echo "${RED}配置解析失败${RESET}"
+                exit 1
+            fi
+            exit 0
+            ;;
+        --import-ssh-config)
+            shift
+            _ssh_conf="${1:-${HOME}/.ssh/config}"
+            if [[ ! -f "$_ssh_conf" ]]; then
+                _die "SSH config not found: $_ssh_conf"
+            fi
+            init_env
+            _count=0
+            _ch="" _cn="" _cp="22" _cu=""
+            while IFS= read -r line; do
+                if [[ "$line" =~ ^[[:space:]]*Host[[:space:]]+(.+) ]]; then
+                    if [[ -n "$_cn" && -n "$_ch" ]]; then
+                        cat >>"$CONF" <<NODE
+  - name: $_cn
+    group: Imported
+    host: $_ch
+    port: $_cp
+    user: ${_cu:-root}
+    type: key
+    pass: ""
+    keypath: ""
+NODE
+                        ((_count++))
+                    fi
+                    _cn="${BASH_REMATCH[1]}"
+                    _cn="${_cn%% *}"
+                    _ch=""
+                elif [[ "$line" =~ ^[[:space:]]*HostName[[:space:]]+(.+) ]]; then
+                    _ch="${BASH_REMATCH[1]}"
+                elif [[ "$line" =~ ^[[:space:]]*Port[[:space:]]+(.+) ]]; then
+                    _cp="${BASH_REMATCH[1]}"
+                elif [[ "$line" =~ ^[[:space:]]*User[[:space:]]+(.+) ]]; then
+                    _cu="${BASH_REMATCH[1]}"
+                fi
+            done <"$_ssh_conf"
+            if [[ -n "$_cn" && -n "$_ch" ]]; then
+                cat >>"$CONF" <<NODE
+  - name: $_cn
+    group: Imported
+    host: $_ch
+    port: $_cp
+    user: ${_cu:-root}
+    type: key
+    pass: ""
+    keypath: ""
+NODE
+                ((_count++))
+            fi
+            if [[ $_count -gt 0 ]]; then
+                _echo "${GREEN}从 $_ssh_conf 导入了 ${_count} 个主机${RESET}"
+            else
+                _echo "${YELLOW}未找到可导入的主机条目${RESET}"
+            fi
+            exit 0
             ;;
         *)
             if [[ "$1" == -* ]]; then
