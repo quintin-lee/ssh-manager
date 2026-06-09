@@ -17,9 +17,8 @@ sed_i() {
 }
 
 _backup_config() {
-    local src="${1:-$CONF}"
-    if [[ -f "$src" ]]; then
-        cp "$src" "${src}.bak.$(date +%s)" 2>/dev/null || true
+    if [[ -f "$CONF" ]]; then
+        cp "$CONF" "${CONF}.bak.$(date +%s)" 2>/dev/null || true
     fi
 }
 
