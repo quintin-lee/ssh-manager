@@ -44,6 +44,8 @@ package() {
     mkdir -p "${pkgdir}/usr/share/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/doc/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/licenses/ssh-manager"
+    mkdir -p "${pkgdir}/usr/share/bash-completion/completions"
+    mkdir -p "${pkgdir}/usr/share/zsh/site-functions"
 
     cp "${startdir}/bin/sshm.sh" "${pkgdir}/usr/bin/sshm"
     chmod 755 "${pkgdir}/usr/bin/sshm"
@@ -51,7 +53,9 @@ package() {
     cp "${startdir}/lib/yaml_parser.sh" "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
     chmod 644 "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
 
-    # Copy config file to /etc/ssh-manager/ as the default system config
+    cp "${startdir}/completions/sshm.bash" "${pkgdir}/usr/share/bash-completion/completions/sshm"
+    cp "${startdir}/completions/_sshm" "${pkgdir}/usr/share/zsh/site-functions/_sshm"
+
     cp "${startdir}/conf/config.yaml" "${pkgdir}/etc/ssh-manager/config.yaml"
     chmod 644 "${pkgdir}/etc/ssh-manager/config.yaml"  # 所有人可读
 

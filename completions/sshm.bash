@@ -20,9 +20,10 @@ _sshm_completion() {
     fi
 
     local conf="${SSH_MANAGER_CONFIG:-${HOME}/.config/ssh-manager/config.yaml}"
+    [[ -f /etc/ssh-manager/config.yaml ]] && conf="/etc/ssh-manager/config.yaml"
     if [[ -f "$conf" ]]; then
         local nodes
-        nodes=$(grep -E '^\s*-?\s*name:\s*' "$conf" 2>/dev/null | sed 's/.*name:\s*//' | sed 's/^"//;s/"$//')
+        nodes=$(grep -E '^\s*-?\s*name:\s*' "$conf" 2>/dev/null | sed 's/.*name:\s*//;s/^"//;s/"$//;s/^'\''//;s/'\''$//')
         COMPREPLY=($(compgen -W "$nodes" -- "$cur"))
     fi
 }

@@ -24,10 +24,13 @@ mkdir -p "${PAYLOAD_DIR}/bin"
 mkdir -p "${PAYLOAD_DIR}/conf"
 mkdir -p "${PAYLOAD_DIR}/lib"
 mkdir -p "${PAYLOAD_DIR}/doc"
+mkdir -p "${PAYLOAD_DIR}/completions"
 
 cp "${PROJECT_ROOT}/bin/sshm.sh" "${PAYLOAD_DIR}/bin/sshm"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${PAYLOAD_DIR}/conf/config.yaml"
 cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${PAYLOAD_DIR}/lib/yaml_parser.sh"
+cp "${PROJECT_ROOT}/completions/sshm.bash" "${PAYLOAD_DIR}/completions/sshm.bash"
+cp "${PROJECT_ROOT}/completions/_sshm" "${PAYLOAD_DIR}/completions/_sshm"
 [ -f "${PROJECT_ROOT}/README.md" ] && cp "${PROJECT_ROOT}/README.md" "${PAYLOAD_DIR}/doc/README.md"
 
 # 3. Create the Internal Install Script
@@ -77,6 +80,17 @@ mkdir -p "${INSTALL_LIB_DIR}"
 cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
 chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
 
+# Install completions
+echo "Installing shell completions..."
+if [ -f completions/sshm.bash ]; then
+    mkdir -p /usr/share/bash-completion/completions
+    cp completions/sshm.bash /usr/share/bash-completion/completions/sshm
+fi
+if [ -f completions/_sshm ]; then
+    mkdir -p /usr/share/zsh/site-functions
+    cp completions/_sshm /usr/share/zsh/site-functions/_sshm
+fi
+
 # 2. Install Config
 echo "Installing configuration..."
 mkdir -p "${INSTALL_CONF_DIR}"
@@ -111,6 +125,8 @@ fi
 rm -f ${INSTALL_BIN}
 rm -f ${INSTALL_LIB_DIR}/yaml_parser.sh
 rmdir ${INSTALL_LIB_DIR} 2>/dev/null || true
+rm -f /usr/share/bash-completion/completions/sshm
+rm -f /usr/share/zsh/site-functions/_sshm
 rm -f /usr/local/bin/sshm-uninstall
 # Optional: remove config dir?
 # rm -rf ${INSTALL_CONF_DIR}
