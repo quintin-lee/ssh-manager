@@ -11,7 +11,7 @@ load test_helper
 @test "sshm --help exits 0" {
     run bash "${TEST_DIR}/../bin/sshm.sh" --help
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"Usage: sshm"* ]]
+    [[ "$output" == *"SSH Manager"* ]]
 }
 
 @test "sshm -h exits 0" {

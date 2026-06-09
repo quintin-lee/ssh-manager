@@ -324,6 +324,8 @@ _render_list() {
         found=1
     done
 
+    _RENDERED_NODES=("${disp_nodes[@]}")
+
     local idx=0
     for node in "${disp_nodes[@]}"; do
         IFS='|' read -r original_id name group host port type <<<"$node"
@@ -377,7 +379,8 @@ _render_list() {
 _interactive_list() {
     local filter_key=""
     local selected_idx=0
-    local mode="normal"  # normal or delete
+    local mode="normal"
+    _RENDERED_NODES=()  # normal or delete
 
     while true; do
         _render_list "$selected_idx" "$filter_key" "$([[ "$mode" == "delete" ]] && echo 2 || echo 1)"
@@ -390,31 +393,20 @@ _interactive_list() {
             ((selected_idx > 0)) && ((selected_idx--))
             ;;
         DOWN)
-            # get_all_nodes to count
-            get_all_nodes "$CONF" "$filter_key" ""
-            local total=${#NODES_ARRAY[@]}
+            local total=${#_RENDERED_NODES[@]}
             ((selected_idx < total - 1)) && ((selected_idx++))
             ;;
         ENTER)
-            if [[ "$mode" == "delete" ]]; then
-                if [[ $selected_idx -ge 0 ]]; then
-                    local target_node
-                    get_all_nodes "$CONF" "$filter_key" ""
-                    target_node="${NODES_ARRAY[$selected_idx]}"
-                    local original_id
-                    original_id=$(echo "$target_node" | cut -d'|' -f1)
+            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_RENDERED_NODES[@]} ]]; then
+                local target_node="${_RENDERED_NODES[$selected_idx]}"
+                local original_id
+                original_id=$(echo "$target_node" | cut -d'|' -f1)
+                if [[ "$mode" == "delete" ]]; then
                     _echo "\n"
                     perform_delete "$original_id"
                     mode="normal"
                     selected_idx=0
-                fi
-            else
-                if [[ $selected_idx -ge 0 ]]; then
-                    local target_node
-                    get_all_nodes "$CONF" "$filter_key" ""
-                    target_node="${NODES_ARRAY[$selected_idx]}"
-                    local original_id
-                    original_id=$(echo "$target_node" | cut -d'|' -f1)
+                else
                     ssh_connect "$original_id"
                     local conn_status=$?
                     if [[ $conn_status -ne 0 ]]; then
@@ -814,14 +806,21 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             echo "SSH Manager v${VERSION} - SSH connection management tool"
             echo ""
-            echo "Usage: sshm [OPTIONS]"
+            echo "Usage:"
+            echo "  sshm [keyword]        Search & connect directly"
+            echo "  sshm                   Interactive mode (arrow keys, real-time filter)"
             echo ""
             echo "Options:"
-            echo "  --help, -h        Show this help message"
-            echo "  --version, -v     Show version information"
-            echo "  --config <path>   Use specified config file"
+            echo "  --help, -h            Show this help message"
+            echo "  --version, -v         Show version information"
+            echo "  --config <path>       Use specified config file"
             echo ""
-            echo "Environment variables:"
+            echo "Interactive keys:"
+            echo "  ↑↓  Navigate   Enter  Connect    type  Filter"
+            echo "  a   Add node    d     Delete     e     Export"
+            echo "  i   Import      h     Help       q     Quit"
+            echo ""
+            echo "Environment:"
             echo "  SSH_MANAGER_CONFIG    Path to config file"
             exit 0
             ;;
@@ -852,24 +851,25 @@ CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 init_env
 
 show_help() {
-    clear
+    echo ""
     _echo "${CYAN}==== SSH MANAGER v0.2 帮助 ====${RESET}"
     echo ""
     _echo "${GREEN}列表导航:${RESET}"
-    echo "  ${BLUE}↑↓${RESET}        - 选择节点"
+    echo "  ${BLUE}↑↓${RESET}        - 选择节点, 当前行高亮"
     echo "  ${BLUE}Enter${RESET}     - 连接到选中节点"
     echo "  ${BLUE}输入文字${RESET}  - 实时过滤节点列表"
-    echo "  ${BLUE}ESC${RESET}       - 清除过滤"
-    echo "  ${BLUE}退格${RESET}      - 删除过滤字符"
+    echo "  ${BLUE}ESC${RESET}       - 清除过滤条件"
+    echo "  ${BLUE}退格${RESET}      - 删除最后一个过滤字符"
     echo ""
     _echo "${GREEN}快捷键:${RESET}"
-    echo "  ${BLUE}a${RESET} - 添加节点  ${BLUE}d${RESET} - 删除模式  ${BLUE}e${RESET} - 导出  ${BLUE}i${RESET} - 导入"
-    echo "  ${BLUE}h${RESET} - 帮助      ${BLUE}q${RESET} - 退出"
+    echo "  ${BLUE}a${RESET} - 添加节点   ${BLUE}d${RESET} - 删除模式(再按退出)"
+    echo "  ${BLUE}e${RESET} - 导出配置   ${BLUE}i${RESET} - 导入配置"
+    echo "  ${BLUE}h${RESET} - 帮助       ${BLUE}q${RESET} - 退出程序"
     echo ""
     _echo "${GREEN}命令行:${RESET}"
-    echo "  sshm prod        - 直接搜索并连接到匹配节点"
-    echo "  sshm --config f   - 使用指定配置文件"
-    echo "  sshm --help       - 显示此帮助"
+    echo "  sshm prod         - 直接搜索并连接匹配节点"
+    echo "  sshm --config <f>  - 使用指定配置文件"
+    echo "  sshm --help        - 显示此帮助"
     echo ""
     read -n 1 -r -p "按任意键返回..." _
     echo
