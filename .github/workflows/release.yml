@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "$VERSION" > VERSION
+          echo "Release version: $VERSION (tag: $TAG)"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm makeself
+
+      - name: Build packages
+        run: |
+          ./scripts/package.sh
+          ls -lh dist/
+
+      - name: Build self-extracting installer
+        run: |
+          ./scripts/build_makeself.sh
+          ls -lh ssh-manager-*.run
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.deb *.rpm *.tar.gz 2>/dev/null > SHA256SUMS
+          sha256sum ../ssh-manager-*.run >> SHA256SUMS 2>/dev/null
+          cat SHA256SUMS
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "SSH Manager v${{ env.VERSION }}"
+          body: |
+            ## SSH Manager v${{ env.VERSION }}
+
+            ### Installation
+
+            **Self-extracting installer (all Linux):**
+            ```bash
+            sudo ./ssh-manager-${{ env.VERSION }}.run
+            ```
+
+            **Debian/Ubuntu:**
+            ```bash
+            sudo dpkg -i ssh-manager_${{ env.VERSION }}-1_all.deb
+            ```
+
+            **RHEL/Fedora:**
+            ```bash
+            sudo rpm -ivh ssh-manager-${{ env.VERSION }}-1.noarch.rpm
+            ```
+
+            **Generic tarball:**
+            ```bash
+            tar xzf ssh-manager-${{ env.VERSION }}.tar.gz
+            cd ssh-manager-${{ env.VERSION }} && sudo ./install.sh
+            ```
+          files: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            ssh-manager-*.run
+          draft: false
+          prerelease: false
