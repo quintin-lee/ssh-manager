@@ -267,139 +267,210 @@ ssh_connect() {
     return $exit_code
 }
 
-# --- 5. 列表与交互界面（终极修复版）---
-list_and_choose() {
-    local filter_key="${1,,}"
-    local group_filter="$2"
-    local mode="$3"
+# --- 5. 交互式列表（方向键导航 + 实时过滤）---
+
+_read_key() {
+    local key key2 key3
+    IFS= read -r -s -n 1 key
+    if [[ "$key" == $'\033' ]]; then
+        IFS= read -r -s -n 1 -t 0.01 key2 2>/dev/null
+        if [[ "$key2" == "[" ]]; then
+            IFS= read -r -s -n 1 -t 0.01 key3 2>/dev/null
+            case "$key3" in
+                A) echo "UP" ;;
+                B) echo "DOWN" ;;
+                *) echo "ESC" ;;
+            esac
+        else
+            echo "ESC"
+        fi
+    elif [[ "$key" == "" ]]; then
+        echo "ENTER"
+    else
+        echo "$key"
+    fi
+}
+
+_render_list() {
+    local selected_idx="$1"
+    local filter_key="${2,,}"
+    local highlight="${3:-0}"  # 0=normal, 1=delete mode
+
+    get_all_nodes "$CONF" "$filter_key" ""
+
+    if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
+        local sorted_output
+        sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2)
+        NODES_ARRAY=()
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && NODES_ARRAY+=("$line")
+        done <<<"$sorted_output"
+    fi
+
+    clear
+    local FORMAT_STR="%-4s | %-4s | %-12s | %-16s | %-21s | %-5s"
+
+    _echo "${CYAN}$(printf "${FORMAT_STR}" "St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
+    echo "-------------------------------------------------------------------------------"
+
+    local display_id=1
+    local current_group=""
+    local disp_nodes=()
+    local found=0
+
+    for node in "${NODES_ARRAY[@]}"; do
+        IFS='|' read -r original_id name group host port type <<<"$node"
+        disp_nodes+=("$original_id|$name|$group|$host|$port|$type")
+        found=1
+    done
+
+    local idx=0
+    for node in "${disp_nodes[@]}"; do
+        IFS='|' read -r original_id name group host port type <<<"$node"
+
+        if [[ -z "$filter_key" && "$group" != "$current_group" ]]; then
+            local sel=""
+            [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]] && sel="${BLUE}>${RESET} "
+            _echo "${PURPLE}${sel}$(printf "${FORMAT_STR}" "" "" "[$group]" "" "" "")${RESET}"
+            current_group="$group"
+            ((idx++))
+        fi
+
+        local st="●   "
+        if _ping_check "$host"; then
+            st="${GREEN}●${RESET}   "
+        else
+            st="${RED}●${RESET}   "
+        fi
+
+        local id_str
+        id_str=$(printf "%-4d" $display_id)
+        id_str="${GREEN}${id_str}${RESET}"
+
+        local line_color=""
+        [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]] && line_color="${BLUE}>${RESET} "
+        [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]] && line_color="${RED}>${RESET} "
+
+        local node_line
+        node_line="$(printf "${FORMAT_STR}" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
+        _echo "${line_color}${node_line}"
+        ((display_id++))
+        ((idx++))
+    done
+
+    if [[ $found -eq 0 ]]; then
+        local empty_msg=""
+        [[ -n "$filter_key" ]] && empty_msg="无匹配 [${filter_key}]" || empty_msg="暂无节点，请先添加 (按 a)"
+        echo ""
+        _echo "${YELLOW}  ${empty_msg}${RESET}"
+        echo ""
+    fi
+
+    echo "-------------------------------------------------------------------------------"
+    local mode_hint=""
+    [[ "$highlight" -eq 2 ]] && mode_hint="${RED}[删除模式]${RESET} " 
+    local total=$(( ${#disp_nodes[@]} + 0 ))
+    _echo "${mode_hint}节点: ${total} | ${BLUE}↑↓${RESET}选择 ${BLUE}Enter${RESET}连接 | ${BLUE}输入${RESET}过滤 | ${BLUE}a${RESET}添加 ${BLUE}d${RESET}删除 ${BLUE}q${RESET}退出"
+    [[ -n "$filter_key" ]] && _echo "过滤: ${YELLOW}${filter_key}${RESET} (ESC 清除)"
+}
+
+_interactive_list() {
+    local filter_key=""
+    local selected_idx=0
+    local mode="normal"  # normal or delete
 
     while true; do
-        get_all_nodes "$CONF" "$filter_key" "$group_filter"
+        _render_list "$selected_idx" "$filter_key" "$([[ "$mode" == "delete" ]] && echo 2 || echo 1)"
 
-        # 优化：按分组聚合排序，防止同一分组被拆分显示
-        # Sort by Group (field 3) then Name (field 2)
-        if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
-            local sorted_output
-            sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2)
-            NODES_ARRAY=()
-            while IFS= read -r line; do
-                [[ -n "$line" ]] && NODES_ARRAY+=("$line")
-            done <<<"$sorted_output"
-        fi
+        local key
+        key=$(_read_key)
 
-        clear
-        local FORMAT_STR="%-4s | %-4s | %-12s | %-14s | %-19s | %-5s"
-
-        # 表头（_echo 使用 printf 确保颜色生效）
-        _echo "${CYAN}$(printf "${FORMAT_STR}" "St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
-        echo "---------------------------------------------------------------------------"
-
-        local display_id=1
-        local found=0
-        local current_group=""
-        local display_nodes=()
-
-        for node in "${NODES_ARRAY[@]}"; do
-            IFS='|' read -r original_id name group host port type <<<"$node"
-            display_nodes+=("$original_id|$name|$group|$host|$port|$type")
-            found=1
-        done
-
-        for node in "${display_nodes[@]}"; do
-            IFS='|' read -r original_id name group host port type <<<"$node"
-
-            if [[ -z "$filter_key" && "$group" != "$current_group" ]]; then
-                # 分组行：_echo 解析颜色
-                _echo "${PURPLE}$(printf "${FORMAT_STR}" "" "" "[$group]" "" "" "")${RESET}"
-                current_group="$group"
-            fi
-
-            # 状态列：固定宽度+颜色生效
-            local st="●   "
-            if _ping_check "$host"; then
-                st="${GREEN}●${RESET}   "
-            else
-                st="${RED}●${RESET}   "
-            fi
-
-            # ID列：先格式化再加颜色
-            local id_str
-            id_str=$(printf "%-4d" $display_id)
-            id_str="${GREEN}${id_str}${RESET}"
-
-            # 节点行：用 _echo 确保颜色转义
-            _echo "$(printf "${FORMAT_STR}" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
-            ((display_id++))
-        done
-
-        if [[ $found -eq 0 ]]; then
-            local empty_msg=""
-            if [[ -n "$filter_key" ]]; then
-                empty_msg="无匹配 [${filter_key}] 的节点"
-            else
-                empty_msg="暂无节点，请先添加"
-            fi
-            _echo "${YELLOW}$(printf "${FORMAT_STR}" "" "" "${empty_msg}" "" "" "")${RESET}"
-        fi
-
-        echo "---------------------------------------------------------------------------"
-        if [[ "$mode" == "delete" ]]; then
-            _echo "${RED}[删除模式]${RESET} 输入 ${YELLOW}显示ID${RESET} 执行删除 | ${GREEN}q${RESET} 返回"
-        else
-            _echo "操作: ${YELLOW}显示ID${RESET} 连接 | ${BLUE}/关键词${RESET} 搜索 | ${GREEN}q${RESET} 返回主菜单"
-        fi
-
-        read -p ">> " input
-        [[ "$input" == "q" || "$input" == "Q" ]] && return
-
-        if [[ "$mode" == "delete" ]]; then
-            if [[ "$input" =~ ^[0-9]+$ && $input -ge 1 && $input -lt $display_id ]]; then
-                local target_node=${display_nodes[$((input - 1))]}
-                local original_id
-                original_id=$(echo "$target_node" | cut -d'|' -f1)
-                perform_delete "$original_id"
-                continue
-            else
-                _echo "${RED}无效的显示ID，请重新输入${RESET}"
-                sleep 1
-            fi
-        else
-            case $input in
-            /*)
-                filter_key="${input:1}"
-                filter_key="${filter_key,,}"
-                ;;
-            [0-9]*)
-                if [[ $input -ge 1 && $input -lt $display_id ]]; then
-                    local target_node=${display_nodes[$((input - 1))]}
+        case "$key" in
+        UP)
+            ((selected_idx > 0)) && ((selected_idx--))
+            ;;
+        DOWN)
+            # get_all_nodes to count
+            get_all_nodes "$CONF" "$filter_key" ""
+            local total=${#NODES_ARRAY[@]}
+            ((selected_idx < total - 1)) && ((selected_idx++))
+            ;;
+        ENTER)
+            if [[ "$mode" == "delete" ]]; then
+                if [[ $selected_idx -ge 0 ]]; then
+                    local target_node
+                    get_all_nodes "$CONF" "$filter_key" ""
+                    target_node="${NODES_ARRAY[$selected_idx]}"
                     local original_id
-                original_id=$(echo "$target_node" | cut -d'|' -f1)
+                    original_id=$(echo "$target_node" | cut -d'|' -f1)
+                    _echo "\n"
+                    perform_delete "$original_id"
+                    mode="normal"
+                    selected_idx=0
+                fi
+            else
+                if [[ $selected_idx -ge 0 ]]; then
+                    local target_node
+                    get_all_nodes "$CONF" "$filter_key" ""
+                    target_node="${NODES_ARRAY[$selected_idx]}"
+                    local original_id
+                    original_id=$(echo "$target_node" | cut -d'|' -f1)
                     ssh_connect "$original_id"
                     local conn_status=$?
-                    case $conn_status in
-                        0) ;;
-                        1) _echo "${RED}连接超时，按任意键返回...${RESET}" ;;
-                        2) _echo "${RED}认证失败（密码或密钥错误），按任意键返回...${RESET}" ;;
-                        3) _echo "${RED}连接被拒绝（目标主机拒绝连接），按任意键返回...${RESET}" ;;
-                        4) _echo "${RED}主机不可达，按任意键返回...${RESET}" ;;
-                        5) _echo "${RED}主机密钥验证失败，按任意键返回...${RESET}" ;;
-                        6) _echo "${RED}无法解析主机名，按任意键返回...${RESET}" ;;
-                        *) _echo "${RED}连接异常退出 ($conn_status)，按任意键返回...${RESET}" ;;
-                    esac
                     if [[ $conn_status -ne 0 ]]; then
-                        read -n 1 -s -r
+                        case $conn_status in
+                            1) _echo "${RED}连接超时${RESET}" ;;
+                            2) _echo "${RED}认证失败${RESET}" ;;
+                            3) _echo "${RED}连接被拒绝${RESET}" ;;
+                            4) _echo "${RED}主机不可达${RESET}" ;;
+                            5) _echo "${RED}主机密钥验证失败${RESET}" ;;
+                            6) _echo "${RED}无法解析主机名${RESET}" ;;
+                            *) _echo "${RED}连接异常退出 ($conn_status)${RESET}" ;;
+                        esac
+                        sleep 1.5
                     fi
-                else
-                    _echo "${RED}无效的显示ID，请重新输入${RESET}"
-                    sleep 1
                 fi
-                ;;
-            *)
-                _echo "${RED}无效输入，请重新输入${RESET}"
-                sleep 1
-                ;;
-            esac
-        fi
+            fi
+            ;;
+        ESC)
+            filter_key=""
+            selected_idx=0
+            ;;
+        a|A)
+            add_node
+            ;;
+        d|D)
+            if [[ "$mode" == "delete" ]]; then
+                mode="normal"
+            else
+                mode="delete"
+                selected_idx=0
+            fi
+            ;;
+        e|E)
+            export_config
+            ;;
+        i|I)
+            import_config
+            ;;
+        h|H)
+            show_help
+            ;;
+        q|Q)
+            return
+            ;;
+        $'\177'|$'\010')
+            # Backspace
+            if [[ -n "$filter_key" ]]; then
+                filter_key="${filter_key:0:-1}"
+                selected_idx=0
+            fi
+            ;;
+        [[:print:]])
+            filter_key="${filter_key}${key,,}"
+            selected_idx=0
+            ;;
+        esac
     done
 }
 
@@ -768,8 +839,10 @@ while [[ $# -gt 0 ]]; do
             fi
             ;;
         *)
-            _echo "${RED}Unknown option: $1${RESET}"
-            _die "Use --help for usage information."
+            if [[ "$1" == -* ]]; then
+                _die "Unknown option: $1. Use --help for usage information."
+            fi
+            break
             ;;
     esac
 done
@@ -778,71 +851,52 @@ CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
 init_env
 
-# 显示帮助信息
 show_help() {
     clear
     _echo "${CYAN}==== SSH MANAGER v0.2 帮助 ====${RESET}"
-    _echo "${GREEN}主菜单快捷键:${RESET}"
-    echo "  [Enter]     - 显示节点列表并连接"
-    echo "  [/]         - 搜索节点"
-    echo "  [a]         - 添加新节点"
-    echo "  [d]         - 删除节点"
-    echo "  [e]         - 导出配置 (Base64 或 文件)"
-    echo "  [i]         - 导入配置 (Base64 或 文件)"
-    echo "  [h]         - 显示此帮助"
-    echo "  [q]         - 退出程序"
     echo ""
-    _echo "${GREEN}节点列表快捷键:${RESET}"
-    echo "  [1-9]       - 连接到对应编号的节点"
-    echo "  [/] + 关键词 - 搜索节点"
-    echo "  [回车]      - 返回上级菜单"
+    _echo "${GREEN}列表导航:${RESET}"
+    echo "  ${BLUE}↑↓${RESET}        - 选择节点"
+    echo "  ${BLUE}Enter${RESET}     - 连接到选中节点"
+    echo "  ${BLUE}输入文字${RESET}  - 实时过滤节点列表"
+    echo "  ${BLUE}ESC${RESET}       - 清除过滤"
+    echo "  ${BLUE}退格${RESET}      - 删除过滤字符"
     echo ""
-    _echo "${YELLOW}提示: 输入 'q' 或 'Ctrl+C' 可随时退出当前操作${RESET}"
+    _echo "${GREEN}快捷键:${RESET}"
+    echo "  ${BLUE}a${RESET} - 添加节点  ${BLUE}d${RESET} - 删除模式  ${BLUE}e${RESET} - 导出  ${BLUE}i${RESET} - 导入"
+    echo "  ${BLUE}h${RESET} - 帮助      ${BLUE}q${RESET} - 退出"
     echo ""
-    read -n 1 -r -p "按任意键返回主菜单..." _
+    _echo "${GREEN}命令行:${RESET}"
+    echo "  sshm prod        - 直接搜索并连接到匹配节点"
+    echo "  sshm --config f   - 使用指定配置文件"
+    echo "  sshm --help       - 显示此帮助"
+    echo ""
+    read -n 1 -r -p "按任意键返回..." _
     echo
 }
 
-while true; do
-    clear
-    _echo "${CYAN}==== SSH MANAGER v0.2 (Final Stable) ====${RESET}"
-    _echo "${GREEN}请选择操作:${RESET}"
-    _echo "  ${BLUE}[回车]${RESET} 节点列表与连接 ${YELLOW}(List & Connect)${RESET}"
-    _echo "  ${BLUE}[/]${RESET}    快捷搜索节点 ${YELLOW}(Search)${RESET}"
-    _echo "  ${BLUE}[a]${RESET}    添加新节点 ${YELLOW}(Add)${RESET}"
-    _echo "  ${BLUE}[d]${RESET}    删除节点 ${YELLOW}(Delete)${RESET}"
-    _echo "  ${BLUE}[e]${RESET}    导出配置 ${YELLOW}(Export)${RESET}"
-    _echo "  ${BLUE}[i]${RESET}    导入配置 ${YELLOW}(Import)${RESET}"
-    _echo "  ${BLUE}[h]${RESET}    帮助 ${YELLOW}(Help)${RESET}"
-    _echo "  ${BLUE}[q]${RESET}    退出 ${YELLOW}(Quit)${RESET}"
-    echo ""
-    _echo "${YELLOW}提示: 直接按回车将进入节点列表${RESET}"
+# CLI direct connect: sshm <keyword>
+if [[ $# -gt 0 ]]; then
+    keyword="${1,,}"
+    shift
+    get_all_nodes "$CONF" "$keyword" ""
+    if [[ ${#NODES_ARRAY[@]} -eq 0 ]]; then
+        _die "无匹配节点: $keyword"
+    elif [[ ${#NODES_ARRAY[@]} -eq 1 ]]; then
+        IFS='|' read -r id name group host port type <<<"${NODES_ARRAY[0]}"
+        _echo "连接: $name ($host:$port)"
+        ssh_connect "$id"
+    else
+        _echo "${YELLOW}找到 ${#NODES_ARRAY[@]} 个匹配节点:${RESET}"
+        for node in "${NODES_ARRAY[@]}"; do
+            IFS='|' read -r id name group host port type <<<"$node"
+            echo "  [$id] $name ($host:$port) [$group]"
+        done
+        echo ""
+        _echo "请运行 ${GREEN}sshm${RESET} 进入交互界面选择，或输入更精确的关键词"
+        exit 1
+    fi
+    exit 0
+fi
 
-    # 读取单个字符，不需要按回车
-    read -n 1 -s choice
-
-    # 添加换行以便输出更清晰
-    echo
-
-    case $choice in
-    "") list_and_choose ;; # 回车键
-    1) list_and_choose ;;  # 数字1 (向后兼容)
-    [aA]) add_node ;;
-    [dD]) list_and_choose "" "" "delete" ;;
-    [eE]) export_config ;;
-    [iI]) import_config ;;
-    [hH]) show_help ;;
-    [qQ])
-        _echo "${YELLOW}退出程序...${RESET}"
-        exit 0
-        ;;
-    [/])
-        read -p "关键词: " kw
-        list_and_choose "$kw"
-        ;;
-    *)
-        _echo "${RED}无效选择: '$choice'，请输入 h 查看帮助${RESET}"
-        sleep 2
-        ;;
-    esac
-done
+_interactive_list
