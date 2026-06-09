@@ -23,6 +23,29 @@ _backup_config() {
 }
 
 declare -A _PING_CACHE
+_HISTORY_FILE="${HOME}/.cache/ssh-manager-history"
+_SORT_MODE="group"
+
+_term_width() {
+    tput cols 2>/dev/null || echo "${COLUMNS:-80}"
+}
+
+_record_connection() {
+    local name="$1" host="$2"
+    mkdir -p "$(dirname "$_HISTORY_FILE")" 2>/dev/null
+    local entry
+    entry="${name}|${host}|$(date +%s)"
+    grep -vFx "$entry" "$_HISTORY_FILE" 2>/dev/null > "${_HISTORY_FILE}.tmp" || true
+    echo "$entry" >> "${_HISTORY_FILE}.tmp"
+    tail -20 "${_HISTORY_FILE}.tmp" > "$_HISTORY_FILE"
+    rm -f "${_HISTORY_FILE}.tmp"
+}
+
+_get_recent() {
+    if [[ -f "$_HISTORY_FILE" ]]; then
+        tac "$_HISTORY_FILE" 2>/dev/null | head -10
+    fi
+}
 
 _ping_check_cached() {
     local host="$1"
@@ -290,24 +313,38 @@ _read_key() {
 _render_list() {
     local selected_idx="$1"
     local filter_key="${2,,}"
-    local highlight="${3:-0}"  # 0=normal, 1=delete mode
+    local highlight="${3:-0}"
 
     get_all_nodes "$CONF" "$filter_key" ""
 
     if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
         local sorted_output
-        sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2)
+        case "${_SORT_MODE:-group}" in
+            name)  sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k2,2) ;;
+            status)
+                sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}")
+                ;;
+            *)     sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2) ;;
+        esac
         NODES_ARRAY=()
         while IFS= read -r line; do
             [[ -n "$line" ]] && NODES_ARRAY+=("$line")
         done <<<"$sorted_output"
     fi
 
-    clear
-    local FORMAT_STR="%-6s | %-4s | %-12s | %-16s | %-21s | %-5s"
+    local term_w
+    term_w=$(_term_width)
+    local name_w=$(( term_w > 100 ? 24 : 16 ))
+    local host_w=$(( term_w > 100 ? 26 : 21 ))
 
-    _echo "${CYAN}$(printf "${FORMAT_STR}" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
-    echo "-------------------------------------------------------------------------------"
+    clear
+    local FMT
+    FMT="%-6s | %-4s | %-12s | %-${name_w}s | %-${host_w}s | %-5s"
+    local sep
+    sep=$(printf '%*s' $((45 + name_w + host_w)) '' | tr ' ' '-')
+
+    _echo "${CYAN}$(printf "$FMT" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
+    echo "$sep"
 
     local display_id=1
     local disp_nodes=()
@@ -345,9 +382,7 @@ _render_list() {
         id_str=$(printf "%-4d" $display_id)
         id_str="${GREEN}${id_str}${RESET}"
 
-        local node_line
-        node_line="$(printf "${FORMAT_STR}" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
-        _echo "$node_line"
+        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
         ((display_id++))
         ((idx++))
     done
@@ -360,11 +395,13 @@ _render_list() {
         echo ""
     fi
 
-    echo "-------------------------------------------------------------------------------"
+    echo "$sep"
     local mode_hint=""
-    [[ "$highlight" -eq 2 ]] && mode_hint="${RED}[删除模式]${RESET} " 
+    [[ "$highlight" -eq 2 ]] && mode_hint="${RED}[删除模式]${RESET} "
     local total=$(( ${#disp_nodes[@]} + 0 ))
-    _echo "${mode_hint}节点: ${total} | ${BLUE}↑↓${RESET}选择 ${BLUE}Enter${RESET}连接 | ${BLUE}输入${RESET}过滤 | ${BLUE}a${RESET}添加 ${BLUE}d${RESET}删除 ${BLUE}q${RESET}退出"
+    local sort_label="组"
+    case "${_SORT_MODE:-group}" in name) sort_label="名" ;; status) sort_label="状态" ;; esac
+    _echo "${mode_hint}节点: ${total} | ${BLUE}↑↓${RESET}选择 ${BLUE}Enter${RESET}连接 | ${BLUE}输入${RESET}过滤 | ${BLUE}s${RESET}排序[${sort_label}] ${BLUE}a${RESET}添加 ${BLUE}d${RESET}删除 ${BLUE}r${RESET}历史 ${BLUE}q${RESET}退出"
     [[ -n "$filter_key" ]] && _echo "过滤: ${YELLOW}${filter_key}${RESET} (ESC 清除)"
 }
 
@@ -372,7 +409,10 @@ _interactive_list() {
     local filter_key=""
     local selected_idx=0
     local mode="normal"
-    _RENDERED_NODES=()  # normal or delete
+    _RENDERED_NODES=()
+    _SORT_MODE="group"
+
+    trap 'filter_key=""; selected_idx=0' SIGINT
 
     while true; do
         _render_list "$selected_idx" "$filter_key" "$([[ "$mode" == "delete" ]] && echo 2 || echo 1)"
@@ -399,6 +439,10 @@ _interactive_list() {
                     mode="normal"
                     selected_idx=0
                 else
+                    local conn_name conn_host
+                    conn_name=$(echo "$target_node" | cut -d'|' -f2)
+                    conn_host=$(echo "$target_node" | cut -d'|' -f4)
+                    _record_connection "$conn_name" "$conn_host"
                     ssh_connect "$original_id"
                     local conn_status=$?
                     if [[ $conn_status -ne 0 ]]; then
@@ -431,6 +475,33 @@ _interactive_list() {
                 selected_idx=0
             fi
             ;;
+        s|S)
+            case "$_SORT_MODE" in
+                group)  _SORT_MODE="name" ;;
+                name)   _SORT_MODE="status" ;;
+                status) _SORT_MODE="group" ;;
+            esac
+            selected_idx=0
+            ;;
+        r|R)
+            if [[ -f "$_HISTORY_FILE" ]]; then
+                clear
+                _echo "${CYAN}==== 最近连接 ====${RESET}"
+                echo ""
+                local i=1
+                while IFS='|' read -r name host ts; do
+                    local dt
+                    dt=$(date -d "@$ts" '+%m-%d %H:%M' 2>/dev/null || date -r "$ts" '+%m-%d %H:%M' 2>/dev/null || echo "---")
+                    printf "  %2d. %-16s %-22s %s\n" "$i" "$name" "$host" "$dt"
+                    ((i++))
+                done < <(_get_recent)
+                echo ""
+                read -n 1 -r -p "按任意键返回..." _
+            else
+                _echo "\n${YELLOW}暂无连接历史${RESET}"
+                sleep 1
+            fi
+            ;;
         e|E)
             export_config
             ;;
@@ -444,7 +515,6 @@ _interactive_list() {
             return
             ;;
         $'\177'|$'\010')
-            # Backspace
             if [[ -n "$filter_key" ]]; then
                 filter_key="${filter_key:0:-1}"
                 selected_idx=0
