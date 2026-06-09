@@ -6,6 +6,7 @@
 set -o pipefail
 
 _echo() { printf '%b\n' "$*"; }
+_die()  { _echo "${RED}$*${RESET}" >&2; exit 1; }
 
 sed_i() {
     if [[ "$(uname)" == "Darwin" ]]; then
@@ -47,23 +48,20 @@ if [[ -f "${SCRIPT_DIR}/../lib/yaml_parser.sh" ]]; then
 elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
     source "/usr/local/share/ssh-manager/yaml_parser.sh"
 else
-    _echo "${RED}Error: yaml_parser.sh not found. Please reinstall ssh-manager.${RESET}" >&2
-    exit 1
+    _die "Error: yaml_parser.sh not found. Please reinstall ssh-manager."
 fi
 
-# --- 1. 环境初始化（优化权限处理）---
-init_env() {
-    # First check if user has personal config file
+# --- 1. 环境初始化 ---
+
+_resolve_config() {
     local user_conf="${HOME}/.config/ssh-manager/config.yaml"
     local user_conf_dir
     user_conf_dir="$(dirname "$user_conf")"
 
-    # Create user config directory if it doesn't exist
     if [[ ! -d "$user_conf_dir" ]]; then
         mkdir -p "$user_conf_dir" 2>/dev/null || true
     fi
 
-    # If user config exists, use it instead of default
     if [[ -f "$user_conf" ]]; then
         CONF="$user_conf"
     fi
@@ -71,55 +69,39 @@ init_env() {
     local conf_dir
     conf_dir=$(dirname "$CONF")
 
-    # Check if config is in system directory like /etc
     if [[ "$CONF" == /etc/* ]]; then
-        # System-wide config file exists, but users shouldn't write to /etc directory
         if [[ -f "$CONF" ]]; then
-            # Just verify the system config file exists and is readable, no write check
             if [[ ! -r "$CONF" ]]; then
-                _echo "${RED}错误：系统配置文件 $CONF 不可读${RESET}"
-                exit 1
+                _die "错误：系统配置文件 $CONF 不可读"
             fi
-
-            # Check if user has a personal config - this should be prioritized
-            # Already checked above, but if we reach here, copy from system default
             if [[ ! -f "$user_conf" ]]; then
                 if cp "$CONF" "$user_conf" 2>/dev/null; then
                     chmod 600 "$user_conf" 2>/dev/null || true
                     _echo "${GREEN}已复制系统配置到个人目录: $user_conf${RESET}"
-                    # Switch to use user config instead of system config
                     CONF="$user_conf"
                 else
                     _echo "${YELLOW}使用只读的系统配置文件（无法保存更改）${RESET}"
                     if ! grep -q "^nodes:" "$CONF" 2>/dev/null; then
-                        _echo "${RED}错误：系统配置文件缺少 nodes: 头部，请检查配置${RESET}"
-                        exit 1
+                        _die "错误：系统配置文件缺少 nodes: 头部，请检查配置"
                     fi
                 fi
             else
-                # User has their own config, use that instead
                 CONF="$user_conf"
             fi
         else
-            # System config doesn't exist, suggest creating user config
             mkdir -p "$user_conf_dir"
             touch "$user_conf"
             chmod 600 "$user_conf"
             CONF="$user_conf"
-
             echo "nodes:" >"$CONF"
             _echo "${YELLOW}已创建个人配置文件: $CONF${RESET}"
         fi
     else
-        # Non-system config path, use original logic
         if [[ ! -w "$conf_dir" ]]; then
-            # Change to user config path if it's writable
             if [[ -w "$user_conf_dir" ]]; then
                 CONF="$user_conf"
-                conf_dir="$user_conf_dir"
             else
-                _echo "${RED}错误：目录 $conf_dir 不可写${RESET}"
-                exit 1
+                _die "错误：目录 $conf_dir 不可写"
             fi
         fi
 
@@ -127,55 +109,56 @@ init_env() {
             echo "nodes:" >"$CONF"
             _echo "${YELLOW}已创建默认配置文件: $CONF${RESET}"
         elif [[ ! -r "$CONF" ]]; then
-            _echo "${RED}错误：配置文件 $CONF 不可读${RESET}"
-            exit 1
+            _die "错误：配置文件 $CONF 不可读"
         fi
     fi
+}
 
-    # 优化的权限设置逻辑 - 适配不同目录和用户权限
-    # 1. 先检查当前用户是否是文件所有者
-    if [[ -f "$CONF" ]]; then
-        local file_owner
-        file_owner=$(stat -c "%U" "$CONF" 2>/dev/null || stat -f "%Su" "$CONF" 2>/dev/null)
-        local current_user
-        current_user=$(whoami)
+_setup_config_permissions() {
+    if [[ ! -f "$CONF" ]]; then
+        return
+    fi
 
-        # 2. 判断配置文件路径是否在系统目录（/etc）下
-        if [[ "$CONF" == /etc/* ]]; then
-            # /etc 目录下：普通用户通常无权限修改权限，仅给出提示
-            if [[ "$current_user" != "root" ]]; then
-                _echo "${YELLOW}提示：配置文件位于 /etc 目录，普通用户无法设置 600 权限，请以 root 身份运行或忽略此提示${RESET}"
+    local file_owner
+    file_owner=$(stat -c "%U" "$CONF" 2>/dev/null || stat -f "%Su" "$CONF" 2>/dev/null)
+    local current_user
+    current_user=$(whoami)
+
+    if [[ "$CONF" == /etc/* ]]; then
+        if [[ "$current_user" != "root" ]]; then
+            _echo "${YELLOW}提示：配置文件位于 /etc 目录，普通用户无法设置 600 权限，请以 root 身份运行或忽略此提示${RESET}"
+        else
+            if chmod 600 "$CONF"; then
+                _echo "${GREEN}已将 /etc 目录下的配置文件权限设置为 600${RESET}"
             else
-                # root 用户尝试设置权限
-                if chmod 600 "$CONF"; then
-                    _echo "${GREEN}已将 /etc 目录下的配置文件权限设置为 600${RESET}"
-                else
-                    _echo "${RED}错误：root 用户也无法设置 /etc 目录下配置文件的权限为 600${RESET}"
-                fi
+                _echo "${RED}错误：root 用户也无法设置 /etc 目录下配置文件的权限为 600${RESET}"
+            fi
+        fi
+    else
+        if [[ "$file_owner" == "$current_user" ]]; then
+            if ! chmod 600 "$CONF"; then
+                _echo "${YELLOW}警告：无法设置配置文件权限为 600${RESET}"
             fi
         else
-            # 非 /etc 目录：正常尝试设置权限
-            if [[ "$file_owner" == "$current_user" ]]; then
-                # 当前用户是文件所有者，尝试设置 600 权限
-                if ! chmod 600 "$CONF"; then
-                    _echo "${YELLOW}警告：无法设置配置文件权限为 600${RESET}"
-                fi
-            else
-                # 当前用户不是文件所有者，给出明确提示
-                _echo "${YELLOW}提示：配置文件 $CONF 不属于当前用户 $current_user，无法设置 600 权限${RESET}"
-            fi
+            _echo "${YELLOW}提示：配置文件 $CONF 不属于当前用户 $current_user，无法设置 600 权限${RESET}"
         fi
     fi
+}
 
-    # 检查依赖工具
+_check_dependencies() {
     local missing_tools=()
     for tool in expect sed awk ping base64; do
         command -v "$tool" &>/dev/null || missing_tools+=("$tool")
     done
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
-        _echo "${RED}缺少依赖: ${missing_tools[*]}${RESET}"
-        exit 1
+        _die "缺少依赖: ${missing_tools[*]}"
     fi
+}
+
+init_env() {
+    _resolve_config
+    _setup_config_permissions
+    _check_dependencies
 }
 
 # --- 2. 简化版 YAML 解析 ---
@@ -759,14 +742,12 @@ while [[ $# -gt 0 ]]; do
                 export SSH_MANAGER_CONFIG="$1"
                 shift
             else
-                _echo "${RED}Error: --config requires a path argument${RESET}"
-                exit 1
+                _die "Error: --config requires a path argument"
             fi
             ;;
         *)
             _echo "${RED}Unknown option: $1${RESET}"
-            echo "Use --help for usage information."
-            exit 1
+            _die "Use --help for usage information."
             ;;
     esac
 done
