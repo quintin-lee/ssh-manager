@@ -1,0 +1,66 @@
+name: Package
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-makeself:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install makeself
+        run: |
+          git clone --depth 1 https://github.com/megastep/makeself.git /tmp/makeself
+          sudo cp /tmp/makeself/makeself.sh /usr/local/bin/makeself
+          sudo chmod +x /usr/local/bin/makeself
+
+      - name: Build .run installer
+        run: |
+          bash scripts/build_makeself.sh
+
+      - name: Upload .run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-manager-run
+          path: ssh-manager-*.run
+
+  build-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm expect
+
+      - name: Build all packages
+        run: |
+          bash scripts/package.sh
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-manager-deb
+          path: dist/*.deb
+          if-no-files-found: ignore
+
+      - name: Upload .rpm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-manager-rpm
+          path: dist/*.rpm
+          if-no-files-found: ignore
+
+      - name: Upload .tar.gz artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-manager-tarball
+          path: dist/*.tar.gz
+          if-no-files-found: ignore
