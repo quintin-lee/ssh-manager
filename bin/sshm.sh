@@ -3,6 +3,8 @@
 # Date: 2026-01-10
 # Version: 0.2 (Final Stable)
 
+set -o pipefail
+
 _echo() { printf '%b\n' "$*"; }
 
 sed_i() {
@@ -10,6 +12,21 @@ sed_i() {
         sed -i '' "$@"
     else
         sed -i "$@"
+    fi
+}
+
+_backup_config() {
+    local src="${1:-$CONF}"
+    if [[ -f "$src" ]]; then
+        cp "$src" "${src}.bak.$(date +%s)" 2>/dev/null || true
+    fi
+}
+
+_ping_check() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        ping -c 1 -t 1 "$1" &>/dev/null
+    else
+        ping -c 1 -W 1 "$1" &>/dev/null
     fi
 }
 
@@ -73,14 +90,10 @@ init_env() {
                     # Switch to use user config instead of system config
                     CONF="$user_conf"
                 else
-                    # If can't copy, continue with system config (read-only mode)
                     _echo "${YELLOW}使用只读的系统配置文件（无法保存更改）${RESET}"
-
-                    # For read-only system config, just ensure basic structure exists
                     if ! grep -q "^nodes:" "$CONF" 2>/dev/null; then
-                        echo "nodes:" >/tmp/sshm_temp_config$$
-                        cat "$CONF" >>/tmp/sshm_temp_config$$
-                        mv /tmp/sshm_temp_config$$ "$CONF" 2>/dev/null || true
+                        _echo "${RED}错误：系统配置文件缺少 nodes: 头部，请检查配置${RESET}"
+                        exit 1
                     fi
                 fi
             else
@@ -327,7 +340,7 @@ list_and_choose() {
 
             # 状态列：固定宽度+颜色生效
             local st="●   "
-            if ping -c 1 -W 0.3 "$host" &>/dev/null; then
+            if _ping_check "$host"; then
                 st="${GREEN}●${RESET}   "
             else
                 st="${RED}●${RESET}   "
@@ -417,6 +430,7 @@ list_and_choose() {
 # --- 6. 删除逻辑 ---
 perform_delete() {
     local id=$1
+    [[ "$id" =~ ^[0-9]+$ ]] || { _echo "${RED}无效 ID: $id${RESET}"; sleep 1; return 1; }
     read_node_info "$CONF" "$id"
 
     if [[ -z "$NODE_HOST" ]]; then
@@ -433,7 +447,7 @@ perform_delete() {
     fi
 
     local tmp_file
-    tmp_file=$(mktemp)
+    tmp_file=$(mktemp) || { _echo "${RED}错误：无法创建临时文件${RESET}"; return 1; }
     local current_id=0
     local skip=0
 
@@ -463,10 +477,14 @@ perform_delete() {
     if [[ $(head -n1 "$tmp_file" | tr -d '[:space:]') != "nodes:" ]]; then
         sed_i '1i nodes:' "$tmp_file"
     fi
-    mv "$tmp_file" "$CONF"
-    chmod 600 "$CONF" 2>/dev/null
-
-    _echo "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
+    _backup_config
+    if mv "$tmp_file" "$CONF"; then
+        chmod 600 "$CONF" 2>/dev/null
+	_echo "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
+    else
+	_echo "${RED}错误：写入配置文件失败，备份已保存至 ${CONF}.bak.*${RESET}"
+	return 1
+    fi
     sleep 1
     return 0
 }
@@ -508,12 +526,17 @@ add_node() {
     g=${g:-Default}
 
     while true; do
-        read -p "主机 (IP/域名): " h
+        read -r -p "主机 (IP/域名): " h
         h=$(echo "$h" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [[ -n "$h" ]]; then
-            break
+        if [[ -z "$h" ]]; then
+            _echo "${RED}主机不能为空，请重新输入${RESET}"
+            continue
         fi
-        _echo "${RED}主机不能为空，请重新输入${RESET}"
+        if [[ "$h" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]]; then
+            _echo "${RED}主机包含非法字符，请重新输入${RESET}"
+            continue
+        fi
+        break
     done
 
     while true; do
@@ -527,12 +550,17 @@ add_node() {
     done
 
     while true; do
-        read -p "用户: " u
+        read -r -p "用户: " u
         u=$(echo "$u" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [[ -n "$u" ]]; then
-            break
+        if [[ -z "$u" ]]; then
+            _echo "${RED}用户不能为空，请重新输入${RESET}"
+            continue
         fi
-        _echo "${RED}用户不能为空，请重新输入${RESET}"
+        if [[ "$u" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]]; then
+            _echo "${RED}用户名包含非法字符，请重新输入${RESET}"
+            continue
+        fi
+        break
     done
 
     local t="pass"
@@ -569,9 +597,10 @@ add_node() {
     fi
 
     # shellcheck disable=SC1003  # sed append syntax, not a shell escape
-    sed_i -e '$a\' "$CONF" 2>/dev/null
+    sed_i -e '$a\' "$CONF" 2>/dev/null || true
 
-    cat >>"$CONF" <<EOF
+    _backup_config
+    if cat >>"$CONF" <<EOF
   - name: $(sanitize_yaml_value "$n")
     group: $(sanitize_yaml_value "$g")
     host: $(sanitize_yaml_value "$h")
@@ -581,8 +610,12 @@ add_node() {
     pass: $(sanitize_yaml_value "$ps")
     keypath: $(sanitize_yaml_value "$kp")
 EOF
-
-    _echo "${GREEN}节点 [$n] 已成功添加。${RESET}"
+    then
+        _echo "${GREEN}节点 [$n] 已成功添加。 (${h}:${p} ${u}@${t})${RESET}"
+    else
+        _echo "${RED}错误：写入配置文件失败，备份已保存${RESET}"
+        return 1
+    fi
     sleep 1
 }
 
@@ -666,10 +699,14 @@ import_config() {
             return 1
         fi
 
-        echo "$b64_clean" | base64 -d >"$CONF"
-        chmod 600 "$CONF" 2>/dev/null
-
-        _echo "${GREEN}配置导入成功${RESET}"
+        _backup_config
+        if echo "$b64_clean" | base64 -d >"$CONF"; then
+            chmod 600 "$CONF" 2>/dev/null
+            _echo "${GREEN}配置导入成功${RESET}"
+        else
+            _echo "${RED}错误：写入配置文件失败，备份已保存${RESET}"
+            return 1
+        fi
         sleep 1
         return 0
         ;;
@@ -691,19 +728,18 @@ import_config() {
             return 1
         fi
 
-        # Validate that it's a valid YAML file by checking if it has the nodes section
-        if ! head -20 "$import_file" | grep -q "nodes:"; then
+        if ! grep -q "^nodes:" "$import_file" 2>/dev/null; then
             _echo "${RED}验证失败：文件可能不是有效的SSH管理器配置文件${RESET}"
             sleep 2
             return 1
         fi
 
-        # Copy the file to the current config location
+        _backup_config
         if cp "$import_file" "$CONF"; then
             chmod 600 "$CONF" 2>/dev/null
             _echo "${GREEN}配置从文件导入成功: $import_file${RESET}"
         else
-            _echo "${RED}导入失败${RESET}"
+            _echo "${RED}导入失败，备份已保存${RESET}"
         fi
         sleep 2
         ;;
