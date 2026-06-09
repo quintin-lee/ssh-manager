@@ -58,7 +58,7 @@ RED=$'\033[31m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 BLUE=$'\033[34m'
-PURPLE=$'\033[35m'
+BLUE=$'\033[34m'
 CYAN=$'\033[36m'
 RESET=$'\033[0m'
 
@@ -270,20 +270,16 @@ ssh_connect() {
 # --- 5. 交互式列表（方向键导航 + 实时过滤）---
 
 _read_key() {
-    local key key2 key3
+    local key seq
     IFS= read -r -s -n 1 key
     if [[ "$key" == $'\033' ]]; then
-        IFS= read -r -s -n 1 -t 0.01 key2 2>/dev/null
-        if [[ "$key2" == "[" ]]; then
-            IFS= read -r -s -n 1 -t 0.01 key3 2>/dev/null
-            case "$key3" in
-                A) echo "UP" ;;
-                B) echo "DOWN" ;;
-                *) echo "ESC" ;;
-            esac
-        else
-            echo "ESC"
-        fi
+        IFS= read -r -s -n 2 -t 0.1 seq 2>/dev/null
+        case "$seq" in
+            '[A') echo "UP" ;;
+            '[B') echo "DOWN" ;;
+            '')   echo "ESC" ;;
+            *)    echo "ESC" ;;
+        esac
     elif [[ "$key" == "" ]]; then
         echo "ENTER"
     else
@@ -314,7 +310,6 @@ _render_list() {
     echo "-------------------------------------------------------------------------------"
 
     local display_id=1
-    local current_group=""
     local disp_nodes=()
     local found=0
 
@@ -329,14 +324,6 @@ _render_list() {
     local idx=0
     for node in "${disp_nodes[@]}"; do
         IFS='|' read -r original_id name group host port type <<<"$node"
-
-        if [[ -z "$filter_key" && "$group" != "$current_group" ]]; then
-            local sel=""
-            [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]] && sel="${BLUE}>${RESET} "
-            _echo "${PURPLE}${sel}$(printf "${FORMAT_STR}" "" "" "[$group]" "" "" "")${RESET}"
-            current_group="$group"
-            ((idx++))
-        fi
 
         local st="●   "
         if _ping_check "$host"; then
