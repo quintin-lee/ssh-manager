@@ -22,12 +22,35 @@ _backup_config() {
     fi
 }
 
-_ping_check() {
-    if [[ "$(uname)" == "Darwin" ]]; then
-        ping -c 1 -t 1 "$1" &>/dev/null
-    else
-        ping -c 1 -W 1 "$1" &>/dev/null
+declare -A _PING_CACHE
+
+_ping_check_cached() {
+    local host="$1"
+    local now
+    now=$(date +%s)
+    local cached_time="${_PING_CACHE[$host]:-0}"
+
+    if [[ $((now - cached_time)) -lt 30 ]]; then
+        return 0
     fi
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        ping -c 1 -t 1 "$host" &>/dev/null
+    else
+        ping -c 1 -W 1 "$host" &>/dev/null
+    fi
+
+    if [[ $? -eq 0 ]]; then
+        _PING_CACHE[$host]="$now"
+        return 0
+    else
+        _PING_CACHE[$host]="$now"
+        return 1
+    fi
+}
+
+_ping_check() {
+    _ping_check_cached "$@"
 }
 
 # 颜色定义（使用 $'\033' 确保转义码生效）

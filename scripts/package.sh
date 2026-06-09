@@ -146,7 +146,7 @@ build_arch() {
         echo "Building Arch package..."
         cd "${PROJECT_ROOT}"
         makepkg -f
-        mv *.pkg.tar.zst "${OUTPUT_DIR}/" 2>/dev/null || true
+        mv ./*.pkg.tar.zst "${OUTPUT_DIR}/" 2>/dev/null || true
         cd - >/dev/null
     else
         echo "Skipping Arch package: PKGBUILD or makepkg not found."
