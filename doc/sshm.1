@@ -1,0 +1,129 @@
+.TH SSHM 1 "2026-06-09" "SSH Manager v0.2" "User Commands"
+.SH NAME
+sshm \- SSH connection manager with interactive TUI
+.SH SYNOPSIS
+.B sshm
+[\fIOPTIONS\fR] [\fIkeyword\fR]
+.SH DESCRIPTION
+SSH Manager is a terminal-based SSH connection management tool.
+It wraps \fBexpect\fR(1) to automate password and key-based authentication.
+.SH USAGE
+.SS Interactive mode
+.PP
+Run \fBsshm\fR without arguments to enter the interactive list view.
+.TP
+.B \(ua \(da
+Navigate between nodes (selected row is highlighted)
+.TP
+.B Enter
+Connect to the selected node
+.TP
+.B Type
+Filter nodes in real-time by name or host
+.TP
+.B ESC
+Clear current filter
+.TP
+.B s
+Cycle sort mode: by group, by name, by status
+.TP
+.B a
+Add a new node
+.TP
+.B d
+Toggle delete mode (select node with Enter to delete)
+.TP
+.B e / i
+Export/import configuration (base64 or file)
+.TP
+.B r
+Show recent connections history
+.TP
+.B h
+Show help
+.TP
+.B q
+Quit
+.TP
+.B Ctrl+C
+Clear filter and return to top of list
+.SS Command-line direct connect
+.PP
+\fBsshm \fIkeyword\fR
+Search nodes by keyword. If exactly one match, connect directly.
+If multiple matches, list them with details.
+.SH OPTIONS
+.TP
+.BR \-h , " --help"
+Show help message and exit
+.TP
+.BR \-v , " --version"
+Show version and exit
+.TP
+.BI \-\-config " file"
+Use specified YAML config file
+.TP
+.B \-\-validate
+Validate config file syntax and report node count
+.TP
+.BI \-\-import-ssh-config " file"
+Import Host entries from \fB~/.ssh/config\fP format
+.SH CONFIGURATION
+.SS File format
+YAML file with a top-level \fBnodes:\fP list:
+.PP
+.nf
+nodes:
+  \- name: myserver
+    group: Production
+    host: 192.168.1.100
+    port: 22
+    user: admin
+    type: pass
+    pass: "password"
+.fi
+.PP
+For key-based auth, use \fBtype: key\fP and specify \fBkeypath\fP.
+.SS Config file priority
+.TP
+1.
+\fB\-\-config\fP command-line argument
+.TP
+2.
+\fBSSH_MANAGER_CONFIG\fP environment variable
+.TP
+3.
+\fB~/.config/ssh-manager/config.yaml\fP (recommended)
+.TP
+4.
+\fB/etc/ssh-manager/config.yaml\fP
+.TP
+5.
+\fB./config.yaml\fP (current directory)
+.SH FILES
+.TP
+.I ~/.config/ssh-manager/config.yaml
+Default user configuration file
+.TP
+.I ~/.cache/ssh-manager-history
+Recent connection history (last 10)
+.TP
+.I /etc/ssh-manager/config.yaml
+System-wide default configuration
+.SH ENVIRONMENT
+.TP
+.B SSH_MANAGER_CONFIG
+Override default config file path
+.SH SHELL COMPLETION
+.PP
+Bash: \fBsource /usr/share/bash-completion/completions/sshm\fP
+.br
+Zsh:  automatically loaded from \fB/usr/share/zsh/site-functions/_sshm\fP
+.br
+Fish: \fBsource /usr/share/fish/vendor_completions.d/sshm.fish\fP
+.SH SEE ALSO
+.BR ssh (1),
+.BR expect (1),
+.BR ssh-keygen (1)
+.SH LICENSE
+MIT

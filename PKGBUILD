@@ -46,6 +46,7 @@ package() {
     mkdir -p "${pkgdir}/usr/share/licenses/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/bash-completion/completions"
     mkdir -p "${pkgdir}/usr/share/zsh/site-functions"
+    mkdir -p "${pkgdir}/usr/share/man/man1"
 
     cp "${startdir}/bin/sshm.sh" "${pkgdir}/usr/bin/sshm"
     chmod 755 "${pkgdir}/usr/bin/sshm"
@@ -55,6 +56,7 @@ package() {
 
     cp "${startdir}/completions/sshm.bash" "${pkgdir}/usr/share/bash-completion/completions/sshm"
     cp "${startdir}/completions/_sshm" "${pkgdir}/usr/share/zsh/site-functions/_sshm"
+    cp "${startdir}/doc/sshm.1" "${pkgdir}/usr/share/man/man1/sshm.1"
 
     cp "${startdir}/conf/config.yaml" "${pkgdir}/etc/ssh-manager/config.yaml"
     chmod 644 "${pkgdir}/etc/ssh-manager/config.yaml"  # 所有人可读
