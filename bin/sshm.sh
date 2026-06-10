@@ -91,14 +91,17 @@ RESET=$'\033[0m'
 
 CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || cat "/usr/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")
+
 for arg in "$@"; do
     case "$arg" in
         --help|-h)
-            echo "SSH Manager - SSH connection management tool"
+            echo "SSH Manager v${VERSION} - SSH connection management tool"
             echo "Usage: sshm [keyword|--help|--version|--config path|--validate|--import-ssh-config f|--export-ssh-config]"
             exit 0 ;;
         --version|-v)
-            echo "SSH Manager v$(cat "${BASH_SOURCE[0]%/*}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")"
+            echo "SSH Manager v${VERSION}"
             exit 0 ;;
     esac
 done
@@ -889,8 +892,6 @@ import_config() {
 }
 
 # --- 9. 主循环 ---
-
-VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")
 
 _require_bash4
 
