@@ -57,6 +57,12 @@ mkdir -p "${STAGING_DIR}/usr/share/doc/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/licenses/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/bash-completion/completions"
 mkdir -p "${STAGING_DIR}/usr/share/zsh/site-functions"
+
+cp "${PROJECT_ROOT}/bin/sshm.sh" "${STAGING_DIR}/usr/bin/sshm"
+chmod 755 "${STAGING_DIR}/usr/bin/sshm"
+cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
+chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
+
 cp "${PROJECT_ROOT}/completions/sshm.bash" "${STAGING_DIR}/usr/share/bash-completion/completions/sshm"
 cp "${PROJECT_ROOT}/completions/_sshm" "${STAGING_DIR}/usr/share/zsh/site-functions/_sshm"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml"
