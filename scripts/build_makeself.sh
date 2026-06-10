@@ -105,11 +105,18 @@ if [ -f completions/_sshm ]; then
     chmod 644 /usr/share/zsh/site-functions/_sshm
 fi
 
-# Verify library was installed correctly
+# Verify library and version were installed correctly
 if [ ! -f "/usr/local/share/ssh-manager/yaml_parser.sh" ] && [ ! -f "/usr/share/ssh-manager/yaml_parser.sh" ]; then
     echo "ERROR: Failed to install yaml_parser.sh"
+    ls -la /usr/local/share/ssh-manager/ 2>/dev/null || echo "  dir missing"
+    ls -la /usr/share/ssh-manager/ 2>/dev/null || echo "  dir missing"
     exit 1
 fi
+if [ ! -f "/usr/local/share/ssh-manager/VERSION" ] && [ ! -f "/usr/share/ssh-manager/VERSION" ]; then
+    echo "ERROR: Failed to install VERSION"
+    exit 1
+fi
+echo "Library and VERSION verified OK"
 
 # 2. Install Config
 echo "Installing configuration..."
