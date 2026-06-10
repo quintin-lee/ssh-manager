@@ -54,17 +54,15 @@ jobs:
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
             pacman -Sy --noconfirm base-devel expect sudo
-            # Create a build user with no password
             useradd -m build -s /bin/bash
             echo "build ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
             chown -R build:build .
             su build -c "cd /workspace && makepkg -f --noconfirm"
-            chown root:root *.pkg.tar.zst 2>/dev/null || true
+            chown -R root:root .
             ls -la *.pkg.tar.zst || echo "NO PKG FILES"
           '
           ls -la *.pkg.tar.zst 2>/dev/null || echo "NO PKG ON HOST"
           mv *.pkg.tar.zst dist-save/ 2>/dev/null || true
-          sudo chown -R "$(id -u):$(id -g)" .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
