@@ -29,9 +29,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq rpm makeself
 
-      - name: Build packages
+      - name: Build packages (deb + tarball)
         run: |
           ./scripts/package.sh
+          ls -lh dist/
+
+      - name: Build RPM (Fedora)
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
+            dnf install -y rpm-build
+            ./scripts/package.sh
+          '
           ls -lh dist/
 
       - name: Build self-extracting installer
@@ -102,9 +110,8 @@ jobs:
         if: matrix.format == 'rpm'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
-            dnf install -y expect iputils rpm-build
-            ./scripts/package.sh
-            rpm -ivh dist/ssh-manager-*.noarch.rpm
+            dnf install -y expect iputils
+            rpm -ivh ssh-manager-*.noarch.rpm
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
             sshm --config /tmp/test-config.yaml --validate
@@ -117,6 +124,7 @@ jobs:
       - name: Verify .run
         if: matrix.format == 'run'
         run: |
+          sudo apt-get install -y -qq expect
           chmod +x ssh-manager-*.run
           sudo ./ssh-manager-*.run
           hash -r
@@ -216,6 +224,12 @@ jobs:
             **Arch Linux:**
             ```bash
             sudo pacman -U ssh-manager-${{ env.VERSION }}-*-x86_64.pkg.tar.zst
+            ```
+
+            **Tarball (any Linux):**
+            ```bash
+            tar xzf ssh-manager-${{ env.VERSION }}.tar.gz
+            cd ssh-manager-${{ env.VERSION }} && sudo ./install.sh
             ```
           files: |
             *.deb
