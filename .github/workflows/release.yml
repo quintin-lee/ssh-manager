@@ -44,23 +44,34 @@ jobs:
           sudo apt-get install -y -qq expect
           sudo dpkg -i dist/ssh-manager_*.deb
           hash -r
-          echo "=== sshm --version ==="
           sshm --version
-          echo "=== sshm --help ==="
           sshm --help
-          echo "=== sshm --validate ==="
           printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
           sshm --config /tmp/test-config.yaml --validate
           echo "=== uninstall ==="
           sudo apt remove -y ssh-manager || sudo dpkg -r ssh-manager
+
+      - name: Verify .rpm install (Fedora container)
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
+            dnf install -y expect
+            rpm -ivh dist/ssh-manager-*.noarch.rpm
+            sshm --version
+            sshm --help
+            printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
+            sshm --config /tmp/test-config.yaml --validate
+            rpm -e ssh-manager
+          '
 
       - name: Verify .run installer
         run: |
           chmod +x ssh-manager-*.run
           sudo ./ssh-manager-*.run
           hash -r
-          echo "=== sshm --version ==="
           sshm --version
+          sshm --help
+          printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
+          sshm --config /tmp/test-config.yaml --validate
           echo "=== uninstall ==="
           sudo sshm-uninstall || true
 
@@ -71,8 +82,10 @@ jobs:
           cd ssh-manager-*/
           sudo ./install.sh
           hash -r
-          echo "=== sshm --version ==="
           sshm --version
+          sshm --help
+          printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
+          sshm --config /tmp/test-config.yaml --validate
           echo "=== uninstall ==="
           sudo ssh-manager-uninstall || true
 
