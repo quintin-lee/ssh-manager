@@ -57,3 +57,45 @@ jobs:
           VERSION_FILE=$(cat VERSION)
           echo "VERSION file: $VERSION_FILE"
           grep -q "v${VERSION_FILE}" bin/sshm.sh && echo "Version in sshm.sh matches" || echo "WARNING: version mismatch"
+
+  package-verify:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm makeself
+
+      - name: Build and verify .deb
+        run: |
+          ./scripts/package.sh
+          sudo dpkg -i dist/ssh-manager_*.deb
+          hash -r
+          sshm --version
+          sshm --help
+          printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
+          sshm --config /tmp/test-config.yaml --validate
+          sudo apt remove -y ssh-manager || sudo dpkg -r ssh-manager
+
+      - name: Build and verify .run
+        run: |
+          ./scripts/build_makeself.sh
+          chmod +x ssh-manager-*.run
+          sudo ./ssh-manager-*.run
+          hash -r
+          sshm --version
+          sudo sshm-uninstall || true
+
+      - name: Build and verify tarball
+        run: |
+          TARBALL=$(echo dist/ssh-manager-*.tar.gz)
+          tar xzf "$TARBALL"
+          cd ssh-manager-*/
+          sudo ./install.sh
+          hash -r
+          sshm --version
+          sudo ssh-manager-uninstall || true
