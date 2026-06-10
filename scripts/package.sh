@@ -136,9 +136,9 @@ mkdir -p %{buildroot}/usr/share/man/man1
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/bin/* %{buildroot}/usr/bin/
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/etc/ssh-manager/* %{buildroot}/etc/ssh-manager/
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/ssh-manager/* %{buildroot}/usr/share/ssh-manager/
-cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/bash-completion/completions/* %{buildroot}/usr/share/bash-completion/completions/
-cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/zsh/site-functions/* %{buildroot}/usr/share/zsh/site-functions/
-cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/man/man1/* %{buildroot}/usr/share/man/man1/
+find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/bash-completion -type f -exec cp {} %{buildroot}/usr/share/bash-completion/completions/ \; 2>/dev/null || true
+find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/zsh -type f -exec cp {} %{buildroot}/usr/share/zsh/site-functions/ \; 2>/dev/null || true
+find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/man -type f -exec cp {} %{buildroot}/usr/share/man/man1/ \; 2>/dev/null || true
 %files
 /usr/bin/sshm
 %config(noreplace) /etc/ssh-manager/config.yaml
