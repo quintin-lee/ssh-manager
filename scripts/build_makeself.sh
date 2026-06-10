@@ -78,13 +78,15 @@ sed_i 's#^CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:
 echo "Installing library..."
 INSTALL_LIB_DIR="/usr/local/share/ssh-manager"
 mkdir -p "${INSTALL_LIB_DIR}"
+chmod 755 "${INSTALL_LIB_DIR}" 2>/dev/null || true
 cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
 chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
 cp VERSION "${INSTALL_LIB_DIR}/VERSION"
 chmod 644 "${INSTALL_LIB_DIR}/VERSION"
 
-# Also install to /usr/share and /usr/local/lib for max compatibility
+# Also install to /usr/share for compatibility with .deb lookups
 mkdir -p /usr/share/ssh-manager
+chmod 755 /usr/share/ssh-manager 2>/dev/null || true
 cp lib/yaml_parser.sh /usr/share/ssh-manager/yaml_parser.sh
 chmod 644 /usr/share/ssh-manager/yaml_parser.sh
 

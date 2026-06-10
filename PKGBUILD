@@ -42,6 +42,7 @@ package() {
     mkdir -p "${pkgdir}/usr/bin"
     mkdir -p "${pkgdir}/etc/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/ssh-manager"
+    chmod 755 "${pkgdir}/usr/share/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/doc/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/licenses/ssh-manager"
     mkdir -p "${pkgdir}/usr/share/bash-completion/completions"

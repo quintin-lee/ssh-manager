@@ -161,6 +161,7 @@ mkdir -p "$CONF_DIR"
 mkdir -p "$(dirname "$DOC_PATH")"
 mkdir -p "$(dirname "$LICENSE_PATH")"
 mkdir -p "$LIB_PATH"
+chmod 755 "$LIB_PATH" 2>/dev/null || true
 
 # 安装主程序
 log_info "安装主程序..."

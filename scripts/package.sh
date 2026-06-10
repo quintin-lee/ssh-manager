@@ -53,6 +53,7 @@ echo "Preparing staging area..."
 mkdir -p "${STAGING_DIR}/usr/bin"
 mkdir -p "${STAGING_DIR}/etc/ssh-manager"
 mkdir -p "${STAGING_DIR}/usr/share/ssh-manager"
+chmod 755 "${STAGING_DIR}/usr/share/ssh-manager" 2>/dev/null || true
 mkdir -p "${STAGING_DIR}/usr/share/doc/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/licenses/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/bash-completion/completions"
