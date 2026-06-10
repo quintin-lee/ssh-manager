@@ -71,7 +71,7 @@ cp bin/sshm "${INSTALL_BIN}"
 chmod 755 "${INSTALL_BIN}"
 
 # Update config path in the installed script to point to /etc/ssh-manager/config.yaml
-sed_i 's#CONF="${SSH_MANAGER_CONFIG:-config.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${INSTALL_BIN}"
+sed_i 's#^CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${INSTALL_BIN}"
 
 # Install library
 echo "Installing library..."

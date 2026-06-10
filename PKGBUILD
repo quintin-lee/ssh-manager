@@ -5,8 +5,8 @@ pkgrel=4  # 升级版本号
 pkgdesc="Manager ssh connection in your terminal!"
 arch=("any")
 license=("MIT")
-depends=("expect" "bash" "sed" "awk" "iputils" "coreutils" "util-linux")
-optdepends=("coreutils: for base64 encode/decode")
+depends=("expect" "bash" "sed" "awk" "iputils" "coreutils")
+optdepends=("util-linux: for additional utilities")
 
 # 备份配置文件，避免更新时被覆盖
 backup=('etc/ssh-manager/config.yaml')
@@ -55,8 +55,11 @@ package() {
     chmod 644 "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
 
     cp "${startdir}/completions/sshm.bash" "${pkgdir}/usr/share/bash-completion/completions/sshm"
+    chmod 644 "${pkgdir}/usr/share/bash-completion/completions/sshm"
     cp "${startdir}/completions/_sshm" "${pkgdir}/usr/share/zsh/site-functions/_sshm"
+    chmod 644 "${pkgdir}/usr/share/zsh/site-functions/_sshm"
     cp "${startdir}/doc/sshm.1" "${pkgdir}/usr/share/man/man1/sshm.1"
+    chmod 644 "${pkgdir}/usr/share/man/man1/sshm.1"
 
     cp "${startdir}/conf/config.yaml" "${pkgdir}/etc/ssh-manager/config.yaml"
     chmod 644 "${pkgdir}/etc/ssh-manager/config.yaml"  # 所有人可读
@@ -65,7 +68,7 @@ package() {
     cp "${startdir}/conf/config.yaml" "${pkgdir}/etc/ssh-manager/config.yaml.default"
     chmod 644 "${pkgdir}/etc/ssh-manager/config.yaml.default"  # 所有人可读
 
-    sed -i 's#CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#'  ${pkgdir}/usr/bin/sshm
+    sed -i 's#^CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#'  ${pkgdir}/usr/bin/sshm
 
     if [[ -f "${startdir}/README.md" ]]; then
         cp "${startdir}/README.md" "${pkgdir}/usr/share/doc/ssh-manager/README.md"

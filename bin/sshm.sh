@@ -1023,8 +1023,6 @@ NODE
     esac
 done
 
-CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
-
 init_env
 
 show_help() {

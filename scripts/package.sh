@@ -64,7 +64,7 @@ chmod 644 "${STAGING_DIR}/etc/ssh-manager/config.yaml"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml.default"
 chmod 644 "${STAGING_DIR}/etc/ssh-manager/config.yaml.default"
 
-sed -i 's#CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${STAGING_DIR}/usr/bin/sshm"
+sed -i 's#^CONF="${SSH_MANAGER_CONFIG:-config\.yaml}"#CONF="${SSH_MANAGER_CONFIG:-/etc/ssh-manager/config.yaml}"#' "${STAGING_DIR}/usr/bin/sshm"
 
 [ -f "${PROJECT_ROOT}/README.md" ] && cp "${PROJECT_ROOT}/README.md" "${STAGING_DIR}/usr/share/doc/${APP_NAME}/README.md"
 
