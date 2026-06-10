@@ -393,7 +393,7 @@ _render_list() {
     local term_h term_w visible_h
     term_h=$(tput lines 2>/dev/null || echo 24)
     term_w=$(_term_width)
-    visible_h=$((term_h - 6))
+    visible_h=$((term_h - 4))
 
     local current_mtime
     current_mtime=$(stat -c %Y "$CONF" 2>/dev/null || stat -f %m "$CONF" 2>/dev/null || echo 0)
@@ -429,27 +429,19 @@ _render_list() {
     local name_w=$(( term_w > 100 ? 24 : 16 ))
     local host_w=$(( term_w > 100 ? 26 : 21 ))
     local FMT="%-6s | %-4s | %-12s | %-${name_w}s | %-${host_w}s | %-5s"
-    local line_w=$((45 + name_w + host_w))
 
-    # Top border + header
-    tput cup 0 0 2>/dev/null
-    _echo "${CYAN}┌$(printf '─%.0s' $(seq 1 $((line_w + 2))))┐${RESET}"
-    tput cup 1 0 2>/dev/null
+    # Clear screen and draw header
+    printf '\033[H\033[J'
     local hdr="SSH Manager v0.5.3"
-    [[ -n "$filter_key" ]] && hdr="${hdr}  过滤: ${YELLOW}${filter_key}${RESET} (ESC清除)"
+    [[ -n "$filter_key" ]] && hdr="${hdr}  过滤: ${filter_key} (ESC清除)"
     local sort_l="组"; case "${_SORT_MODE:-group}" in name) sort_l="名" ;; status) sort_l="状态" ;; esac
-    printf "│ %-${line_w}s │\n" "$hdr  排序:${sort_l}"
-    tput cup 2 0 2>/dev/null
-    printf "├%s┤\n" "$(printf '─%.0s' $(seq 1 $((line_w + 2))))"
+    _echo "${CYAN}═══ ${hdr}  排序:${sort_l} ═══${RESET}"
+    _echo "${CYAN}$(printf "$FMT" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
 
-    # Column header
-    tput cup 3 0 2>/dev/null
-    printf "│ ${CYAN}$(printf "$FMT" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET} │\n"
-
-    local display_id=1 idx=0 row=4
+    local display_id=1 idx=0 row=0
     for node in "${disp_nodes[@]}"; do
         [[ $idx -lt ${_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
-        [[ $row -ge $((4 + visible_h)) ]] && break
+        [[ $row -ge $visible_h ]] && break
 
         IFS='|' read -r original_id name group host port type <<<"$node"
         local alive="●"
@@ -463,48 +455,32 @@ _render_list() {
             local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
             [[ "$hl_name" != "$name" ]] && disp_name="$hl_name"
         fi
-        tput cup $row 0 2>/dev/null
-        printf "│ %s │\n" "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")"
+        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")"
         ((display_id++)); ((idx++)); ((row++))
     done
 
-    # Fill empty rows
-    while [[ $row -lt $((4 + visible_h)) ]]; do
-        tput cup $row 0 2>/dev/null
-        printf "│ %-${line_w}s │\n" ""; ((row++))
-    done
     if [[ $found -eq 0 ]]; then
         local empty_msg="暂无节点，请先添加 (按 a)"
         [[ -n "$filter_key" ]] && empty_msg="无匹配 [${filter_key}]"
-        tput cup 5 3 2>/dev/null
-        _echo "${YELLOW}${empty_msg}${RESET}"
+        echo ""
+        _echo "${YELLOW}  ${empty_msg}${RESET}"
+        echo ""
     fi
 
-    # Separator + footer
-    local foot_row=$((4 + visible_h))
-    tput cup $foot_row 0 2>/dev/null
-    printf "├%s┤\n" "$(printf '─%.0s' $(seq 1 $((line_w + 2))))"
-    ((foot_row++))
-    tput cup $foot_row 0 2>/dev/null
+    # Scroll indicators
+    if [[ ${_SCROLL_OFFSET:-0} -gt 0 ]]; then _echo "${YELLOW}  ▲ 上方还有节点${RESET}"; fi
+    if [[ $total -gt $((_SCROLL_OFFSET + visible_h)) ]]; then _echo "${YELLOW}  ▼ 下方还有节点 ($((total - _SCROLL_OFFSET - visible_h)))${RESET}"; fi
+
+    # Footer
+    echo ""
     local mode_hint=""; [[ "$highlight" -eq 2 ]] && mode_hint="${RED}[删除]${RESET} "
     local sel_info=""
     if [[ $total -gt 0 && $selected_idx -lt $total ]]; then
         local sn sh; sn=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f2); sh=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f4)
         sel_info="${BLUE}${sn}${RESET}@${GREEN}${sh}${RESET} "
     fi
-    printf "│ %-${line_w}s │\n" "${mode_hint}${total}个 ${sel_info}| ↑↓选 1-9快连 Enter连 e编 p预览 s排 u撤删 a加 d删 x导出 t主题 q退"
-    ((foot_row++))
-    tput cup $foot_row 0 2>/dev/null
-    printf "└%s┘\n" "$(printf '─%.0s' $(seq 1 $((line_w + 2))))"
-
-    # Scroll indicators
-    if [[ ${_SCROLL_OFFSET:-0} -gt 0 ]]; then
-        tput cup 3 $((line_w + 1)) 2>/dev/null; printf "${YELLOW}▲${RESET}"
-    fi
-    if [[ $total -gt $((_SCROLL_OFFSET + visible_h)) ]]; then
-        tput cup $((3 + visible_h)) $((line_w + 1)) 2>/dev/null; printf "${YELLOW}▼${RESET}"
-    fi
-    tput cup $((foot_row + 1)) 0 2>/dev/null
+    _echo "${CYAN}───${RESET} ${mode_hint}${total}个 ${sel_info}${CYAN}───${RESET}"
+    _echo "↑↓选 1-9快连 Enter连 e编 p预览 s排 u撤删 a加 d删 x导出 t主题 q退"
 }
 
 _preview_node() {
@@ -639,9 +615,7 @@ _interactive_list() {
     _SORT_MODE="group"
     _SCROLL_OFFSET=0
 
-    tput civis 2>/dev/null
-    trap 'tput cnorm 2>/dev/null; filter_key=""; selected_idx=0' SIGINT
-    trap 'tput cnorm 2>/dev/null' EXIT
+    trap 'filter_key=""; selected_idx=0' SIGINT
 
     while true; do
         _render_list "$selected_idx" "$filter_key" "$([[ "$mode" == "delete" ]] && echo 2 || echo 1)"
