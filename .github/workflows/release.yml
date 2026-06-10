@@ -56,7 +56,7 @@ jobs:
             pacman -Sy --noconfirm base-devel expect
             useradd -m builder || usermod -e "" builder
             chown -R builder:builder .
-            runuser -u builder -- makepkg -sf --noconfirm --nodeps
+            runuser -u builder -- makepkg -f --noconfirm
             chown root:root ssh-manager-*.pkg.tar.zst
           '
           mv ssh-manager-*.pkg.tar.zst dist-save/ 2>/dev/null || true
