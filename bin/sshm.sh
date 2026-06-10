@@ -80,14 +80,31 @@ _ping_check() {
     _ping_check_cached "$@"
 }
 
-# 颜色定义（使用 $'\033' 确保转义码生效）
 RED=$'\033[31m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 BLUE=$'\033[34m'
-BLUE=$'\033[34m'
 CYAN=$'\033[36m'
 RESET=$'\033[0m'
+
+_DARK_THEME=1
+_toggle_theme() {
+    if [[ "${_DARK_THEME:-1}" -eq 1 ]]; then
+        RED=$'\033[91m'
+        GREEN=$'\033[92m'
+        YELLOW=$'\033[93m'
+        BLUE=$'\033[94m'
+        CYAN=$'\033[96m'
+        _DARK_THEME=0
+    else
+        RED=$'\033[31m'
+        GREEN=$'\033[32m'
+        YELLOW=$'\033[33m'
+        BLUE=$'\033[34m'
+        CYAN=$'\033[36m'
+        _DARK_THEME=1
+    fi
+}
 
 CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
@@ -443,8 +460,113 @@ _render_list() {
         sel_info=" | ${BLUE}${sel_name}${RESET}@${GREEN}${sel_host}${RESET}"
     fi
 
-    _echo "${mode_hint}节点: ${total}${sel_info} | ${BLUE}↑↓${RESET}选择 ${BLUE}Enter${RESET}连接 | ${BLUE}1-9${RESET}跳转 | ${BLUE}输入${RESET}过滤 | ${BLUE}s${RESET}排序[${sort_label}] ${BLUE}a${RESET}添加 ${BLUE}d${RESET}删除 ${BLUE}r${RESET}历史 ${BLUE}q${RESET}退出"
+    _echo "${mode_hint}${total}节点${sel_info} | ${BLUE}↑↓${RESET}选 ${BLUE}Enter${RESET}连 ${BLUE}p${RESET}预览 ${BLUE}e${RESET}编辑 ${BLUE}s${RESET}排序[${sort_label}] ${BLUE}a${RESET}加 ${BLUE}d${RESET}删 ${BLUE}x${RESET}导出 ${BLUE}t${RESET}主题 ${BLUE}q${RESET}退"
     [[ -n "$filter_key" ]] && _echo "过滤: ${YELLOW}${filter_key}${RESET} (ESC 清除)"
+}
+
+_preview_node() {
+    local target_node="$1"
+    IFS='|' read -r id name group host port type <<<"$target_node"
+    printf '\033[H\033[J'
+    _echo "\n${CYAN}==== 节点详情 ====${RESET}\n"
+    _echo "  名称: ${YELLOW}${name}${RESET}"
+    _echo "  分组: ${YELLOW}${group}${RESET}"
+    _echo "  主机: ${GREEN}${host}${RESET}"
+    _echo "  端口: ${GREEN}${port}${RESET}"
+    _echo "  用户: ${GREEN}${type}${RESET}"
+    _echo "  认证: ${YELLOW}$([[ "$type" == "key" ]] && echo "密钥" || echo "密码")${RESET}"
+    echo ""
+    local alive="无法检测"
+    _ping_check "$host" && alive="${GREEN}可达${RESET}" || alive="${RED}不可达${RESET}"
+    _echo "  状态: ${alive}"
+    echo ""
+    _echo "  ${BLUE}Enter${RESET}=连接  ${BLUE}e${RESET}=编辑  其他键=返回"
+    local key
+    key=$(_read_key)
+    case "$key" in
+        ENTER) ssh_connect "$id"; return 0 ;;
+        e|E) _edit_node "$target_node"; return 0 ;;
+    esac
+}
+
+_edit_node() {
+    local target_node="$1"
+    IFS='|' read -r id name group host port type <<<"$target_node"
+    read_node_info "$CONF" "$id"
+
+    local n="${NODE_NAME:-$name}" g="${NODE_GROUP:-$group}" h="${NODE_HOST:-$host}"
+    local p="${NODE_PORT:-$port}" u="${NODE_USER:-$name}" t="${NODE_TYPE:-$type}"
+    local kp="${NODE_KEYPATH:-}" ps="${NODE_PASS:-}"
+
+    while true; do
+        local aclabel="密码"; [[ "$t" == "key" ]] && aclabel="密钥"
+        local pass_display=""; [[ -n "$ps" ]] && pass_display="****" || pass_display="(未设置)"
+        printf '\033[H\033[J'
+        _echo "\n${BLUE}[编辑节点: ${YELLOW}${n}${BLUE}]${RESET}\n"
+        _echo "  ${GREEN}[1]${RESET} 名称: ${YELLOW}${n}${RESET}"
+        _echo "  ${GREEN}[2]${RESET} 分组: ${YELLOW}${g}${RESET}"
+        _echo "  ${GREEN}[3]${RESET} 主机: ${YELLOW}${h}${RESET}"
+        _echo "  ${GREEN}[4]${RESET} 端口: ${YELLOW}${p}${RESET}"
+        _echo "  ${GREEN}[5]${RESET} 用户: ${YELLOW}${u}${RESET}"
+        _echo "  ${GREEN}[6]${RESET} 认证: ${YELLOW}${aclabel}${RESET}"
+        if [[ "$t" == "key" ]]; then
+            _echo "  ${GREEN}[7]${RESET} 私钥: ${YELLOW}${kp:-(必填)}${RESET}"
+            _echo "  ${GREEN}[8]${RESET} 短语: ${YELLOW}${pass_display}${RESET}"
+        else
+            _echo "  ${GREEN}[7]${RESET} 密码: ${YELLOW}${pass_display}${RESET}"
+        fi
+        echo ""
+        _echo "  ${GREEN}Enter${RESET}=保存  ${BLUE}1-$([[ "$t" == "key" ]] && echo 8 || echo 7)${RESET}=编辑  ${RED}q${RESET}=取消"
+
+        local key
+        key=$(_read_key)
+        case "$key" in
+        ENTER)
+            [[ -z "$n" || -z "$h" ]] && { _echo "\n${RED}名称和主机必填${RESET}"; sleep 1; continue; }
+            [[ "$t" == "key" && -z "$kp" ]] && { _echo "\n${RED}私钥必填${RESET}"; sleep 1; continue; }
+            break ;;
+        q|Q) _echo "\n${YELLOW}取消编辑${RESET}"; sleep 1; return ;;
+        1) read -r -p "名称: " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -n "$v" ]] && n="$v" ;;
+        2) read -r -p "分组: " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -n "$v" ]] && g="$v" || g="Default" ;;
+        3) while true; do read -r -p "主机: " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -z "$v" ]] && { _echo "${RED}主机必填${RESET}"; continue; }; [[ "$v" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]] && { _echo "${RED}非法字符${RESET}"; continue; }; h="$v"; break; done ;;
+        4) read -r -p "端口 (${p}): " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -n "$v" && "$v" =~ ^[0-9]+$ && "$v" -ge 1 && "$v" -le 65535 ]] && p="$v" ;;
+        5) while true; do read -r -p "用户 (${u}): " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -z "$v" ]] && break; [[ "$v" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]] && { _echo "${RED}非法字符${RESET}"; continue; }; u="$v"; break; done ;;
+        6) read -r -p "认证 (1:密码 2:密钥): " v; [[ "$v" == "1" ]] && t="pass"; [[ "$v" == "2" ]] && t="key" ;;
+        7) if [[ "$t" == "key" ]]; then
+                while true; do read -r -p "私钥: " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -z "$v" ]] && break; [[ -f "$v" ]] && { kp="$v"; break; }; _echo "${RED}文件不存在${RESET}"; done
+           else read -s -r -p "密码: " v; echo ""; [[ -n "$v" ]] && ps="$v"; fi ;;
+        8) [[ "$t" == "key" ]] && { read -s -r -p "短语: " v; echo ""; [[ -n "$v" ]] && ps="$v"; } ;;
+        esac
+    done
+
+    _backup_config
+    local tmp_file
+    tmp_file=$(mktemp) || return 1
+    local current_id=0 skip=0
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
+            current_id=$((current_id + 1))
+            [[ $current_id -eq $id ]] && skip=1 || skip=0
+        fi
+        [[ $skip -eq 1 ]] && continue
+        [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* && $skip -eq 1 ]] && skip=0
+        echo "$line" >> "$tmp_file"
+    done <"$CONF"
+    cat >>"$tmp_file" <<EOF
+  - name: $(sanitize_yaml_value "$n")
+    group: $(sanitize_yaml_value "$g")
+    host: $(sanitize_yaml_value "$h")
+    port: $p
+    user: $(sanitize_yaml_value "$u")
+    type: $t
+    pass: $(sanitize_yaml_value "$ps")
+    keypath: $(sanitize_yaml_value "$kp")
+EOF
+    if mv "$tmp_file" "$CONF"; then
+        _echo "${GREEN}节点已更新: $n${RESET}"; sleep 1
+    else
+        _echo "${RED}保存失败${RESET}"; sleep 1; rm -f "$tmp_file"
+    fi
 }
 
 _interactive_list() {
@@ -485,6 +607,12 @@ _interactive_list() {
                     conn_name=$(echo "$target_node" | cut -d'|' -f2)
                     conn_host=$(echo "$target_node" | cut -d'|' -f4)
                     _record_connection "$conn_name" "$conn_host"
+                    printf '\033[H\033[J'
+                    _echo "\n\n  ${BLUE}╔══════════════════════════════╗${RESET}"
+                    _echo "  ${BLUE}║${RESET}  ${YELLOW}连接中: ${conn_name}${RESET}"
+                    _echo "  ${BLUE}║${RESET}  ${GREEN}${conn_host}${RESET}"
+                    _echo "  ${BLUE}╚══════════════════════════════╝${RESET}"
+                    echo ""
                     ssh_connect "$original_id"
                     local conn_status=$?
                     if [[ $conn_status -ne 0 ]]; then
@@ -546,7 +674,20 @@ _interactive_list() {
             fi
             ;;
         e|E)
+            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_RENDERED_NODES[@]} ]]; then
+                _edit_node "${_RENDERED_NODES[$selected_idx]}"
+            fi
+            ;;
+        x|X)
             export_config
+            ;;
+        p|P)
+            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_RENDERED_NODES[@]} ]]; then
+                _preview_node "${_RENDERED_NODES[$selected_idx]}"
+            fi
+            ;;
+        t|T)
+            _toggle_theme
             ;;
         i|I)
             import_config
@@ -1073,9 +1214,9 @@ show_help() {
     echo "  ${BLUE}退格${RESET}      - 删除最后一个过滤字符"
     echo ""
     _echo "${GREEN}快捷键:${RESET}"
-    echo "  ${BLUE}a${RESET} - 添加节点   ${BLUE}d${RESET} - 删除模式(再按退出)"
-    echo "  ${BLUE}e${RESET} - 导出配置   ${BLUE}i${RESET} - 导入配置"
-    echo "  ${BLUE}h${RESET} - 帮助       ${BLUE}q${RESET} - 退出程序"
+    echo "  ${BLUE}a${RESET} - 添加节点   ${BLUE}d${RESET} - 删除模式   ${BLUE}e${RESET} - 编辑节点"
+    echo "  ${BLUE}p${RESET} - 预览详情   ${BLUE}x${RESET} - 导出配置   ${BLUE}i${RESET} - 导入"
+    echo "  ${BLUE}t${RESET} - 主题切换   ${BLUE}h${RESET} - 帮助       ${BLUE}q${RESET} - 退出"
     echo ""
     _echo "${GREEN}命令行:${RESET}"
     echo "  sshm prod         - 直接搜索并连接匹配节点"
