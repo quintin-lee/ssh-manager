@@ -146,6 +146,8 @@ jobs:
             useradd -m builder || usermod -e "" builder
             chown -R builder:builder .
             runuser -u builder -- makepkg -f --noconfirm
+            echo "=== makepkg output ==="
+            ls -la *.pkg.tar.zst 2>/dev/null || echo "NO PKG FILES"
             pacman -U --noconfirm ssh-manager-*.pkg.tar.zst
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
