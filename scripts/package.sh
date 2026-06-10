@@ -122,7 +122,8 @@ Release:    ${RELEASE}%{?dist}
 Summary:    ${DESCRIPTION}
 License:    ${LICENSE}
 BuildArch:  noarch
-Requires:   expect, bash, sed, gawk, iputils, coreutils
+Requires:   expect, bash, sed, gawk, coreutils
+Recommends: iputils
 %description
 ${DESCRIPTION}
 %install

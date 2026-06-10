@@ -90,7 +90,7 @@ jobs:
         if: matrix.format == 'rpm'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
-            dnf install -y expect rpm-build
+            dnf install -y expect iputils rpm-build
             ./scripts/package.sh
             rpm -ivh dist/ssh-manager-*.noarch.rpm
             sshm --version && sshm --help
