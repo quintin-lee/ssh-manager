@@ -184,20 +184,22 @@ build_tarball() {
 
 case "$OS_TYPE" in
     debian)
-        build_deb || build_tarball
+        build_deb
+        build_tarball
         ;;
     redhat)
-        build_rpm || build_tarball
+        build_rpm
+        build_tarball
         ;;
     arch)
-        build_arch || build_tarball
+        build_arch
+        build_tarball
         ;;
     *)
         echo "Unknown or generic system. Building all available or tarball..."
-        # Try building what we can, otherwise tarball
-        if ! { build_deb || build_rpm; }; then
-            build_tarball
-        fi
+        build_deb 2>/dev/null || true
+        build_rpm 2>/dev/null || true
+        build_tarball
         ;;
 esac
 
