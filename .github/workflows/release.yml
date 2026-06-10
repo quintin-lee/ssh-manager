@@ -90,12 +90,16 @@ jobs:
         if: matrix.format == 'rpm'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
-            dnf install -y expect
-            rpm -ivh ssh-manager-*.noarch.rpm || true
+            dnf install -y expect rpm-build
+            ./scripts/package.sh
+            rpm -ivh dist/ssh-manager-*.noarch.rpm
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
             sshm --config /tmp/test-config.yaml --validate
-            rpm -e ssh-manager || true
+            echo "=== completions ==="
+            test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
+            test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
+            rpm -e ssh-manager
           '
 
       - name: Verify .run
