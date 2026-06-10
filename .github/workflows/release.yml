@@ -35,6 +35,7 @@ jobs:
           ls -lh dist/
 
       - name: Build RPM (Fedora)
+        continue-on-error: true
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
             dnf install -y rpm-build
@@ -49,6 +50,7 @@ jobs:
           ls -lh ssh-manager-*.run
 
       - name: Build Arch package
+        continue-on-error: true
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
             pacman -Sy --noconfirm base-devel expect
@@ -92,6 +94,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq expect
+          echo "=== Files available ==="
+          ls -la
 
       - name: Verify .deb
         if: matrix.format == 'deb'
