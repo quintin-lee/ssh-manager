@@ -38,7 +38,7 @@ jobs:
 
       - name: Install packaging tools
         run: |
-          sudo apt-get update -qq
+          sudo apt-get update -qq || true
           sudo apt-get install -y -qq rpm expect
 
       - name: Build all packages

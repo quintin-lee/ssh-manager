@@ -32,7 +32,7 @@ jobs:
       - name: Install ShellCheck (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          sudo apt-get update -qq || true; sudo apt-get install -y -qq shellcheck
 
       - name: Install ShellCheck (macOS)
         if: runner.os == 'macOS'
@@ -71,7 +71,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update -qq
+          sudo apt-get update -qq || true
           sudo apt-get install -y -qq rpm makeself expect
 
       - name: Verify .deb
