@@ -172,10 +172,14 @@ build_tarball() {
     echo "Building generic tarball..."
     TAR_NAME="${APP_NAME}-${APP_VERSION}"
     TAR_DIR="${BUILD_DIR}/${TAR_NAME}"
-    mkdir -p "${TAR_DIR}"
-    cp -r "${STAGING_DIR}/"* "${TAR_DIR}/"
-    [ -f "${PROJECT_ROOT}/scripts/install.sh" ] && cp "${PROJECT_ROOT}/scripts/install.sh" "${TAR_DIR}/install.sh"
-    chmod +x "${TAR_DIR}/install.sh" 2>/dev/null || true
+    mkdir -p "${TAR_DIR}/bin"
+    mkdir -p "${TAR_DIR}/conf"
+    mkdir -p "${TAR_DIR}/lib"
+    cp "${PROJECT_ROOT}/bin/sshm.sh" "${TAR_DIR}/bin/sshm.sh"
+    cp "${PROJECT_ROOT}/conf/config.yaml" "${TAR_DIR}/conf/config.yaml"
+    cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${TAR_DIR}/lib/yaml_parser.sh"
+    cp "${PROJECT_ROOT}/scripts/install.sh" "${TAR_DIR}/install.sh"
+    chmod +x "${TAR_DIR}/install.sh" "${TAR_DIR}/bin/sshm.sh"
     tar -czf "${OUTPUT_DIR}/${TAR_NAME}.tar.gz" -C "${BUILD_DIR}" "${TAR_NAME}"
 }
 
