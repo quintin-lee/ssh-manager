@@ -108,11 +108,12 @@ _apply_theme() {
 }
 
 _choose_theme() {
-    local sel=0
+    local sel=0 orig_r="$RED" orig_g="$GREEN" orig_y="$YELLOW" orig_b="$BLUE" orig_c="$CYAN"
+    _apply_theme "${_THEME_NAMES[$sel]}"
     while true; do
         printf '\033[H\033[J'
         echo ""
-        _echo "  ${CYAN}==== 选择主题 ====${RESET}\n"
+        _echo "  ${CYAN}==== 选择主题 (实时预览) ====${RESET}\n"
         for i in "${!_THEME_NAMES[@]}"; do
             local tname="${_THEME_NAMES[$i]}"
             local label="${_THEMES[$tname]##* }"
@@ -124,15 +125,15 @@ _choose_theme() {
             _echo "${arrow}${sample}  ${label}"
         done
         echo ""
-        _echo "  ${BLUE}↑↓${RESET}选择  ${BLUE}Enter${RESET}确认  ${BLUE}q${RESET}取消"
+        _echo "  ${BLUE}↑↓${RESET}选择(实时预览)  ${BLUE}Enter${RESET}确认  ${BLUE}q${RESET}取消"
 
         local key
         key=$(_read_key)
         case "$key" in
-            UP)    ((sel > 0)) && ((sel--)) ;;
-            DOWN)  ((sel < ${#_THEME_NAMES[@]} - 1)) && ((sel++)) ;;
-            ENTER) _apply_theme "${_THEME_NAMES[$sel]}"; return ;;
-            q|Q)   return ;;
+            UP)    ((sel > 0)) && ((sel--)) && _apply_theme "${_THEME_NAMES[$sel]}" ;;
+            DOWN)  ((sel < ${#_THEME_NAMES[@]} - 1)) && ((sel++)) && _apply_theme "${_THEME_NAMES[$sel]}" ;;
+            ENTER) return ;;
+            q|Q)   RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"; CYAN="$orig_c"; return ;;
         esac
     done
 }
