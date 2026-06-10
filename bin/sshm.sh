@@ -369,7 +369,7 @@ _render_list() {
     local name_w=$(( term_w > 100 ? 24 : 16 ))
     local host_w=$(( term_w > 100 ? 26 : 21 ))
 
-    clear
+    printf '\033[H\033[J'
     local FMT
     FMT="%-6s | %-4s | %-12s | %-${name_w}s | %-${host_w}s | %-5s"
     local sep
@@ -433,7 +433,17 @@ _render_list() {
     local total=$(( ${#disp_nodes[@]} + 0 ))
     local sort_label="组"
     case "${_SORT_MODE:-group}" in name) sort_label="名" ;; status) sort_label="状态" ;; esac
-    _echo "${mode_hint}节点: ${total} | ${BLUE}↑↓${RESET}选择 ${BLUE}Enter${RESET}连接 | ${BLUE}输入${RESET}过滤 | ${BLUE}s${RESET}排序[${sort_label}] ${BLUE}a${RESET}添加 ${BLUE}d${RESET}删除 ${BLUE}r${RESET}历史 ${BLUE}q${RESET}退出"
+
+    local sel_info=""
+    if [[ ${#disp_nodes[@]} -gt 0 && $selected_idx -lt ${#disp_nodes[@]} ]]; then
+        local sel_node="${disp_nodes[$selected_idx]}"
+        local sel_name sel_host
+        sel_name=$(echo "$sel_node" | cut -d'|' -f2)
+        sel_host=$(echo "$sel_node" | cut -d'|' -f4)
+        sel_info=" | ${BLUE}${sel_name}${RESET}@${GREEN}${sel_host}${RESET}"
+    fi
+
+    _echo "${mode_hint}节点: ${total}${sel_info} | ${BLUE}↑↓${RESET}选择 ${BLUE}Enter${RESET}连接 | ${BLUE}1-9${RESET}跳转 | ${BLUE}输入${RESET}过滤 | ${BLUE}s${RESET}排序[${sort_label}] ${BLUE}a${RESET}添加 ${BLUE}d${RESET}删除 ${BLUE}r${RESET}历史 ${BLUE}q${RESET}退出"
     [[ -n "$filter_key" ]] && _echo "过滤: ${YELLOW}${filter_key}${RESET} (ESC 清除)"
 }
 
@@ -517,7 +527,8 @@ _interactive_list() {
             ;;
         r|R)
             if [[ -f "$_HISTORY_FILE" ]]; then
-                clear
+    # clear screen by moving cursor home and clearing below
+    printf '\033[H\033[J'
                 _echo "${CYAN}==== 最近连接 ====${RESET}"
                 echo ""
                 local i=1
@@ -545,6 +556,13 @@ _interactive_list() {
             ;;
         q|Q)
             return
+            ;;
+        g)
+            selected_idx=0
+            ;;
+        G)
+            local total=${#_RENDERED_NODES[@]}
+            ((total > 0)) && selected_idx=$((total - 1))
             ;;
         $'\177'|$'\010')
             if [[ -n "$filter_key" ]]; then
