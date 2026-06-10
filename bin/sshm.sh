@@ -111,7 +111,11 @@ elif [[ -f "/usr/share/ssh-manager/yaml_parser.sh" ]]; then
 elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
     source "/usr/local/share/ssh-manager/yaml_parser.sh"
 else
-    _die "Error: yaml_parser.sh not found. Please reinstall ssh-manager."
+    _die "Error: yaml_parser.sh not found. Please reinstall ssh-manager.
+Checked: ${SCRIPT_DIR}/../lib/yaml_parser.sh
+         /usr/share/ssh-manager/yaml_parser.sh
+         /usr/local/share/ssh-manager/yaml_parser.sh
+Running from: ${BASH_SOURCE[0]}"
 fi
 
 # --- 1. 环境初始化 ---
