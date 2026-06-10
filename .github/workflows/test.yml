@@ -142,13 +142,14 @@ jobs:
         if: matrix.format == 'arch'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
-            pacman -Sy --noconfirm expect base-devel
-            useradd -m builder || usermod -e "" builder
-            chown -R builder:builder .
-            runuser -u builder -- makepkg -f --noconfirm
-            echo "=== makepkg output ==="
-            ls -la *.pkg.tar.zst 2>/dev/null || echo "NO PKG FILES"
-            pacman -U --noconfirm ssh-manager-*.pkg.tar.zst
+            pacman -Sy --noconfirm base-devel expect sudo
+            useradd -m build -s /bin/bash
+            echo "build ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+            chown -R build:build .
+            su build -c "cd /workspace && makepkg -f --noconfirm"
+            chown root:root *.pkg.tar.zst 2>/dev/null || true
+            ls -la *.pkg.tar.zst || echo "NO PKG FILES"
+            pacman -U --noconfirm *.pkg.tar.zst
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
             sshm --config /tmp/test-config.yaml --validate
