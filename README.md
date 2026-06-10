@@ -10,24 +10,24 @@
 
 ```bash
 ./scripts/build_makeself.sh
-sudo ./ssh-manager-0.5.2.run
+sudo ./ssh-manager-0.5.3.run
 ```
 
 ### 系统包管理器
 
 ```bash
 # Debian/Ubuntu
-sudo dpkg -i ssh-manager_0.5.2-1_all.deb
+sudo dpkg -i ssh-manager_0.5.3-1_all.deb
 
 # RHEL/Fedora
-sudo rpm -ivh ssh-manager-0.5.2-1.noarch.rpm
+sudo rpm -ivh ssh-manager-0.5.3-1.noarch.rpm
 
 # Arch Linux
-sudo pacman -U ssh-manager-0.5.2-4-any.pkg.tar.zst
+sudo pacman -U ssh-manager-0.5.3-4-any.pkg.tar.zst
 
 # 通用 tarball
-tar xzf ssh-manager-0.5.2.tar.gz
-cd ssh-manager-0.5.2 && sudo ./install.sh
+tar xzf ssh-manager-0.5.3.tar.gz
+cd ssh-manager-0.5.3 && sudo ./install.sh
 ```
 
 ### 从源码构建包
