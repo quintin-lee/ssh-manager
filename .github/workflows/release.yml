@@ -109,7 +109,9 @@ jobs:
         run: |
           TARBALL=$(echo ssh-manager-*.tar.gz)
           tar xzf "$TARBALL"
-          cd ssh-manager-*/
+          TARDIR=$(echo ssh-manager-*/)
+          cd "$TARDIR"
+          chmod +x install.sh
           sudo ./install.sh
           hash -r
           sshm --version && sshm --help

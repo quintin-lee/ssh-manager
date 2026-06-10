@@ -174,7 +174,8 @@ build_tarball() {
     TAR_DIR="${BUILD_DIR}/${TAR_NAME}"
     mkdir -p "${TAR_DIR}"
     cp -r "${STAGING_DIR}/"* "${TAR_DIR}/"
-    [ -f "${PROJECT_ROOT}/install.sh" ] && cp "${PROJECT_ROOT}/install.sh" "${TAR_DIR}/install.sh"
+    [ -f "${PROJECT_ROOT}/scripts/install.sh" ] && cp "${PROJECT_ROOT}/scripts/install.sh" "${TAR_DIR}/install.sh"
+    chmod +x "${TAR_DIR}/install.sh" 2>/dev/null || true
     tar -czf "${OUTPUT_DIR}/${TAR_NAME}.tar.gz" -C "${BUILD_DIR}" "${TAR_NAME}"
 }
 
