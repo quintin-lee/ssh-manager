@@ -40,6 +40,7 @@ jobs:
             dnf install -y rpm-build
             ./scripts/package.sh
           '
+          sudo chown -R "$(id -u):$(id -g)" build dist
           ls -lh dist/
 
       - name: Build self-extracting installer
@@ -57,6 +58,7 @@ jobs:
             chown root:root ssh-manager-*.pkg.tar.zst
           '
           mv ssh-manager-*.pkg.tar.zst dist/ 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

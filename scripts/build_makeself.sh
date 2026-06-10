@@ -13,7 +13,7 @@ PAYLOAD_DIR="${BUILD_DIR}/payload"
 OUTPUT_FILE="${PROJECT_ROOT}/ssh-manager-${VERSION}.run"
 
 # 1. Clean and Prepare Staging Directory
-rm -rf "${BUILD_DIR}"
+rm -rf "${BUILD_DIR}" 2>/dev/null || true
 mkdir -p "${PAYLOAD_DIR}"
 
 echo "Preparing payload..."
