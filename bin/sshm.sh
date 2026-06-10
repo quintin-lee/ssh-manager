@@ -661,99 +661,116 @@ sanitize_yaml_value() {
 }
 
 add_node() {
-    _echo "\n${BLUE}[添加新节点]${RESET}"
+    local n="" g="Default" h="" p="22" u="root" t="pass" kp="" ps=""
 
     while true; do
-        read -p "名称: " n
-        n=$(echo "$n" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [[ -n "$n" ]]; then
-            break
-        fi
-        _echo "${RED}名称不能为空，请重新输入${RESET}"
-    done
+        case "$t" in key) aclabel="密钥" ;; *) aclabel="密码" ;; esac
+        local pass_display=""
+        [[ -n "$ps" ]] && pass_display="****" || pass_display="(未设置)"
 
-    read -p "分组 (默认 Default): " g
-    g=$(echo "$g" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    g=${g:-Default}
+        printf '\033[H\033[J'
+        _echo "\n${BLUE}[添加新节点]${RESET}\n"
+        _echo "  ${GREEN}[1]${RESET} 名称: ${YELLOW}${n:-(未设置)}${RESET}"
+        _echo "  ${GREEN}[2]${RESET} 分组: ${YELLOW}${g}${RESET}"
+        _echo "  ${GREEN}[3]${RESET} 主机: ${YELLOW}${h:-(必填)}${RESET}"
+        _echo "  ${GREEN}[4]${RESET} 端口: ${YELLOW}${p}${RESET}"
+        _echo "  ${GREEN}[5]${RESET} 用户: ${YELLOW}${u}${RESET}"
+        _echo "  ${GREEN}[6]${RESET} 认证: ${YELLOW}${aclabel}${RESET}"
+        if [[ "$t" == "key" ]]; then
+            _echo "  ${GREEN}[7]${RESET} 私钥: ${YELLOW}${kp:-(必填)}${RESET}"
+            _echo "  ${GREEN}[8]${RESET} 短语: ${YELLOW}${pass_display}${RESET}"
+        else
+            _echo "  ${GREEN}[7]${RESET} 密码: ${YELLOW}${pass_display}${RESET}"
+        fi
+        echo ""
+        if [[ -n "$n" && -n "$h" && ( "$t" != "key" || -n "$kp" ) ]]; then
+            _echo "  ${GREEN}Enter${RESET}=保存  ${BLUE}1-$([[ "$t" == "key" ]] && echo 8 || echo 7)${RESET}=编辑  ${RED}q${RESET}=取消"
+        else
+            _echo "  ${BLUE}1-$([[ "$t" == "key" ]] && echo 8 || echo 7)${RESET}=编辑  ${RED}q${RESET}=取消"
+        fi
 
-    while true; do
-        read -r -p "主机 (IP/域名): " h
-        h=$(echo "$h" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [[ -z "$h" ]]; then
-            _echo "${RED}主机不能为空，请重新输入${RESET}"
-            continue
-        fi
-        if [[ "$h" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]]; then
-            _echo "${RED}主机包含非法字符，请重新输入${RESET}"
-            continue
-        fi
-        break
-    done
+        local key
+        key=$(_read_key)
 
-    while true; do
-        read -p "端口 (默认 22): " p
-        p=$(echo "$p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        p=${p:-22}
-        if [[ "$p" =~ ^[0-9]+$ && "$p" -ge 1 && "$p" -le 65535 ]]; then
-            break
-        fi
-        _echo "${RED}端口无效（必须是 1-65535 之间的数字），请重新输入${RESET}"
-    done
-
-    while true; do
-        read -r -p "用户: " u
-        u=$(echo "$u" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [[ -z "$u" ]]; then
-            _echo "${RED}用户不能为空，请重新输入${RESET}"
-            continue
-        fi
-        if [[ "$u" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]]; then
-            _echo "${RED}用户名包含非法字符，请重新输入${RESET}"
-            continue
-        fi
-        break
-    done
-
-    local t="pass"
-    local kp=""
-    local ps=""
-    while true; do
-        read -p "认证类型 (1:密码 2:密钥，默认 1): " ac
-        ac=${ac:-1}
-        if [[ "$ac" == "1" || "$ac" == "2" ]]; then
-            break
-        fi
-        _echo "${RED}无效选择，请输入 1 或 2${RESET}"
-    done
-
-    if [[ "$ac" == "2" ]]; then
-        t="key"
-        while true; do
-            read -r -p "私钥路径: " kp
-            kp=$(echo "$kp" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            if [[ -z "$kp" ]]; then
-                _echo "${RED}私钥路径不能为空，请重新输入${RESET}"
-                continue
-            fi
-            if [[ -f "$kp" ]]; then
-                if grep -q "PRIVATE KEY" "$kp" 2>/dev/null || ssh-keygen -l -f "$kp" &>/dev/null; then
-                    break
+        case "$key" in
+        ENTER)
+            if [[ -n "$n" && -n "$h" ]]; then
+                if [[ "$t" == "key" && -z "$kp" ]]; then
+                    _echo "\n${RED}私钥路径不能为空${RESET}"; sleep 1; continue
                 fi
-                _echo "${RED}文件不是有效的SSH私钥，请重新输入${RESET}"
-                continue
+                break
             fi
-            _echo "${RED}私钥文件不存在，请重新输入${RESET}"
-        done
-        read -s -p "私钥短语 (可选): " ps
-        echo ""
-    else
-        read -s -p "密码: " ps
-        echo ""
-    fi
+            _echo "\n${RED}名称和主机为必填项${RESET}"; sleep 1
+            ;;
+        q|Q) _echo "\n${YELLOW}取消添加${RESET}"; sleep 1; return ;;
+        1)  read -r -p "名称: " n_val
+            n_val=$(echo "$n_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            [[ -n "$n_val" ]] && n="$n_val" ;;
+        2)  read -r -p "分组: " g_val
+            g_val=$(echo "$g_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            [[ -n "$g_val" ]] && g="$g_val" || g="Default" ;;
+        3)  while true; do
+                read -r -p "主机: " h_val
+                h_val=$(echo "$h_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [[ -z "$h_val" ]]; then _echo "${RED}主机不能为空${RESET}"; continue; fi
+                if [[ "$h_val" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]]; then
+                    _echo "${RED}主机包含非法字符${RESET}"; continue
+                fi
+                h="$h_val"; break
+            done ;;
+        4)  while true; do
+                read -r -p "端口 (${p}): " p_val
+                p_val=$(echo "$p_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                [[ -z "$p_val" ]] && break
+                if [[ "$p_val" =~ ^[0-9]+$ && "$p_val" -ge 1 && "$p_val" -le 65535 ]]; then
+                    p="$p_val"; break
+                fi
+                _echo "${RED}端口无效 (1-65535)${RESET}"
+            done ;;
+        5)  while true; do
+                read -r -p "用户 (${u}): " u_val
+                u_val=$(echo "$u_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [[ -z "$u_val" ]]; then break; fi
+                if [[ "$u_val" =~ [[:space:]\;\|\&\$\`\(\)\{\}\<\>\"\'] ]]; then
+                    _echo "${RED}用户名包含非法字符${RESET}"; continue
+                fi
+                u="$u_val"; break
+            done ;;
+        6)  while true; do
+                read -r -p "认证 (1:密码 2:密钥) [${t}]: " ac
+                ac=$(echo "$ac" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [[ -z "$ac" ]]; then break; fi
+                if [[ "$ac" == "1" ]]; then t="pass"; break
+                elif [[ "$ac" == "2" ]]; then t="key"; break; fi
+                _echo "${RED}请输入 1 或 2${RESET}"
+            done ;;
+        7)  if [[ "$t" == "key" ]]; then
+                while true; do
+                    read -r -p "私钥路径: " kp_val
+                    kp_val=$(echo "$kp_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                    if [[ -z "$kp_val" ]]; then break; fi
+                    if [[ -f "$kp_val" ]]; then
+                        if grep -q "PRIVATE KEY" "$kp_val" 2>/dev/null || ssh-keygen -l -f "$kp_val" &>/dev/null; then
+                            kp="$kp_val"; break
+                        fi
+                        _echo "${RED}不是有效的SSH私钥${RESET}"; continue
+                    fi
+                    _echo "${RED}文件不存在${RESET}"
+                done
+            else
+                read -s -r -p "密码: " ps_val
+                echo ""
+                [[ -n "$ps_val" ]] && ps="$ps_val"
+            fi ;;
+        8)  if [[ "$t" == "key" ]]; then
+                read -s -r -p "短语: " ps_val
+                echo ""
+                [[ -n "$ps_val" ]] && ps="$ps_val"
+            fi ;;
+        esac
+    done
 
-    # shellcheck disable=SC1003  # sed append syntax, not a shell escape
     sed_i -e '$a\' "$CONF" 2>/dev/null || true
-
     _backup_config
     if cat >>"$CONF" <<EOF
   - name: $(sanitize_yaml_value "$n")
