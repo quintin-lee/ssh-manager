@@ -3,9 +3,11 @@
 load test_helper
 
 @test "sshm --version exits 0" {
+    local expected
+    expected="SSH Manager v$(cat "${TEST_DIR}/../VERSION")"
     run bash "${TEST_DIR}/../bin/sshm.sh" --version
     [[ "$status" -eq 0 ]]
-    [[ "$output" == "SSH Manager v0.2" ]]
+    [[ "$output" == "$expected" ]]
 }
 
 @test "sshm --help exits 0" {
