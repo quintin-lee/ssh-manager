@@ -39,6 +39,17 @@ jobs:
           ./scripts/build_makeself.sh
           ls -lh ssh-manager-*.run
 
+      - name: Build Arch package
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
+            pacman -Sy --noconfirm base-devel
+            useradd -m builder || usermod -e "" builder
+            chown -R builder:builder .
+            runuser -u builder -- makepkg -sf --noconfirm
+            chown root:root ssh-manager-*.pkg.tar.zst
+          '
+          mv ssh-manager-*.pkg.tar.zst dist/ 2>/dev/null || true
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -47,6 +58,7 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/*.tar.gz
+            dist/*.pkg.tar.zst
             ssh-manager-*.run
 
   verify:
@@ -55,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        format: [deb, rpm, run, tarball]
+        format: [deb, rpm, run, tarball, arch]
 
     steps:
       - uses: actions/checkout@v4
@@ -131,6 +143,22 @@ jobs:
           sshm --config /tmp/test-config.yaml --validate
           sudo ssh-manager-uninstall || true
 
+      - name: Verify PKGBUILD
+        if: matrix.format == 'arch'
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
+            pacman -Sy --noconfirm expect
+            useradd -m builder || usermod -e "" builder
+            pacman -U --noconfirm ssh-manager-*.pkg.tar.zst
+            sshm --version && sshm --help
+            printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
+            sshm --config /tmp/test-config.yaml --validate
+            echo "=== completions ==="
+            test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
+            test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
+            pacman -R --noconfirm ssh-manager
+          '
+
   release:
     needs: verify
     runs-on: ubuntu-latest
@@ -153,7 +181,7 @@ jobs:
       - name: Generate checksums
         run: |
           > SHA256SUMS
-          for f in *.deb *.rpm *.tar.gz; do
+          for f in *.deb *.rpm *.tar.gz *.pkg.tar.zst; do
             [[ -f "$f" ]] && sha256sum "$f" >> SHA256SUMS
           done
           for f in ssh-manager-*.run; do
@@ -185,15 +213,15 @@ jobs:
             sudo rpm -ivh ssh-manager-${{ env.VERSION }}-1.noarch.rpm
             ```
 
-            **Tarball:**
+            **Arch Linux:**
             ```bash
-            tar xzf ssh-manager-${{ env.VERSION }}.tar.gz
-            cd ssh-manager-${{ env.VERSION }} && sudo ./install.sh
+            sudo pacman -U ssh-manager-${{ env.VERSION }}-*-x86_64.pkg.tar.zst
             ```
           files: |
             *.deb
             *.rpm
             *.tar.gz
+            *.pkg.tar.zst
             SHA256SUMS
             ssh-manager-*.run
           draft: false
