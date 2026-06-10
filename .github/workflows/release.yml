@@ -51,10 +51,10 @@ jobs:
       - name: Build Arch package
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
-            pacman -Sy --noconfirm base-devel
+            pacman -Sy --noconfirm base-devel expect
             useradd -m builder || usermod -e "" builder
             chown -R builder:builder .
-            runuser -u builder -- makepkg -sf --noconfirm
+            runuser -u builder -- makepkg -sf --noconfirm --nodeps
             chown root:root ssh-manager-*.pkg.tar.zst
           '
           mv ssh-manager-*.pkg.tar.zst dist/ 2>/dev/null || true
