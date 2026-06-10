@@ -190,6 +190,20 @@ else
     log_warn "库文件 lib/yaml_parser.sh 不存在，跳过"
 fi
 
+# 安装 Shell 补全
+if [ -f "completions/sshm.bash" ]; then
+    log_info "安装 bash 补全..."
+    mkdir -p /usr/share/bash-completion/completions
+    cp completions/sshm.bash /usr/share/bash-completion/completions/sshm
+    chmod 644 /usr/share/bash-completion/completions/sshm
+fi
+if [ -f "completions/_sshm" ]; then
+    log_info "安装 zsh 补全..."
+    mkdir -p /usr/share/zsh/site-functions
+    cp completions/_sshm /usr/share/zsh/site-functions/_sshm
+    chmod 644 /usr/share/zsh/site-functions/_sshm
+fi
+
 # 安装配置模板
 log_info "安装配置模板..."
 if echo "nodes:" > "$CONF_TEMPLATE_PATH"; then
@@ -320,6 +334,10 @@ if rm -f "$LIB_PATH/yaml_parser.sh" 2>/dev/null; then
     log_success "已删除库文件"
 fi
 rmdir "$LIB_PATH" 2>/dev/null || true
+
+# 删除补全文件
+rm -f /usr/share/bash-completion/completions/sshm 2>/dev/null
+rm -f /usr/share/zsh/site-functions/_sshm 2>/dev/null
 
 # 删除配置目录（如果为空）
 if [ -d "$CONF_DIR" ]; then

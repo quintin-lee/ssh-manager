@@ -90,10 +90,18 @@ echo "Installing shell completions..."
 if [ -f completions/sshm.bash ]; then
     mkdir -p /usr/share/bash-completion/completions
     cp completions/sshm.bash /usr/share/bash-completion/completions/sshm
+    chmod 644 /usr/share/bash-completion/completions/sshm
 fi
 if [ -f completions/_sshm ]; then
     mkdir -p /usr/share/zsh/site-functions
     cp completions/_sshm /usr/share/zsh/site-functions/_sshm
+    chmod 644 /usr/share/zsh/site-functions/_sshm
+fi
+
+# Verify library was installed correctly
+if [ ! -f "/usr/local/share/ssh-manager/yaml_parser.sh" ] && [ ! -f "/usr/share/ssh-manager/yaml_parser.sh" ]; then
+    echo "ERROR: Failed to install yaml_parser.sh"
+    exit 1
 fi
 
 # 2. Install Config

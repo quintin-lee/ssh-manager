@@ -175,9 +175,12 @@ build_tarball() {
     mkdir -p "${TAR_DIR}/bin"
     mkdir -p "${TAR_DIR}/conf"
     mkdir -p "${TAR_DIR}/lib"
+    mkdir -p "${TAR_DIR}/completions"
     cp "${PROJECT_ROOT}/bin/sshm.sh" "${TAR_DIR}/bin/sshm.sh"
     cp "${PROJECT_ROOT}/conf/config.yaml" "${TAR_DIR}/conf/config.yaml"
     cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${TAR_DIR}/lib/yaml_parser.sh"
+    cp "${PROJECT_ROOT}/completions/sshm.bash" "${TAR_DIR}/completions/sshm.bash" 2>/dev/null || true
+    cp "${PROJECT_ROOT}/completions/_sshm" "${TAR_DIR}/completions/_sshm" 2>/dev/null || true
     cp "${PROJECT_ROOT}/scripts/install.sh" "${TAR_DIR}/install.sh"
     chmod +x "${TAR_DIR}/install.sh" "${TAR_DIR}/bin/sshm.sh"
     tar -czf "${OUTPUT_DIR}/${TAR_NAME}.tar.gz" -C "${BUILD_DIR}" "${TAR_NAME}"
