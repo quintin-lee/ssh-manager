@@ -182,6 +182,7 @@ if [ -f "lib/yaml_parser.sh" ]; then
     if cp "lib/yaml_parser.sh" "$LIB_PATH/yaml_parser.sh"; then
         chmod 644 "$LIB_PATH/yaml_parser.sh"
         log_success "库文件已安装到 $LIB_PATH/yaml_parser.sh"
+        cp VERSION "$LIB_PATH/VERSION" 2>/dev/null && chmod 644 "$LIB_PATH/VERSION" || true
     else
         log_error "复制库文件失败"
         exit 1
@@ -333,6 +334,7 @@ fi
 if rm -f "$LIB_PATH/yaml_parser.sh" 2>/dev/null; then
     log_success "已删除库文件"
 fi
+rm -f "$LIB_PATH/VERSION" 2>/dev/null
 rmdir "$LIB_PATH" 2>/dev/null || true
 
 # 删除补全文件

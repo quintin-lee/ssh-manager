@@ -29,6 +29,7 @@ mkdir -p "${PAYLOAD_DIR}/completions"
 cp "${PROJECT_ROOT}/bin/sshm.sh" "${PAYLOAD_DIR}/bin/sshm"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${PAYLOAD_DIR}/conf/config.yaml"
 cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${PAYLOAD_DIR}/lib/yaml_parser.sh"
+cp "${PROJECT_ROOT}/VERSION" "${PAYLOAD_DIR}/VERSION"
 cp "${PROJECT_ROOT}/completions/sshm.bash" "${PAYLOAD_DIR}/completions/sshm.bash"
 cp "${PROJECT_ROOT}/completions/_sshm" "${PAYLOAD_DIR}/completions/_sshm"
 [ -f "${PROJECT_ROOT}/README.md" ] && cp "${PROJECT_ROOT}/README.md" "${PAYLOAD_DIR}/doc/README.md"
@@ -79,6 +80,8 @@ INSTALL_LIB_DIR="/usr/local/share/ssh-manager"
 mkdir -p "${INSTALL_LIB_DIR}"
 cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
 chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
+cp VERSION "${INSTALL_LIB_DIR}/VERSION"
+chmod 644 "${INSTALL_LIB_DIR}/VERSION"
 
 # Also install to /usr/share and /usr/local/lib for max compatibility
 mkdir -p /usr/share/ssh-manager
@@ -141,6 +144,7 @@ if [ "\$(id -u)" -ne 0 ]; then
 fi
 rm -f ${INSTALL_BIN}
 rm -f ${INSTALL_LIB_DIR}/yaml_parser.sh
+rm -f ${INSTALL_LIB_DIR}/VERSION
 rmdir ${INSTALL_LIB_DIR} 2>/dev/null || true
 rm -f /usr/share/ssh-manager/yaml_parser.sh
 rmdir /usr/share/ssh-manager 2>/dev/null || true

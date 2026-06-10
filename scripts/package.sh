@@ -62,6 +62,8 @@ cp "${PROJECT_ROOT}/bin/sshm.sh" "${STAGING_DIR}/usr/bin/sshm"
 chmod 755 "${STAGING_DIR}/usr/bin/sshm"
 cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
 chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
+cp "${PROJECT_ROOT}/VERSION" "${STAGING_DIR}/usr/share/ssh-manager/VERSION"
+chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/VERSION"
 
 cp "${PROJECT_ROOT}/completions/sshm.bash" "${STAGING_DIR}/usr/share/bash-completion/completions/sshm"
 cp "${PROJECT_ROOT}/completions/_sshm" "${STAGING_DIR}/usr/share/zsh/site-functions/_sshm"
@@ -142,6 +144,7 @@ find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/zsh -type f -exec cp {} %{buildroot
 %config(noreplace) /etc/ssh-manager/config.yaml
 /etc/ssh-manager/config.yaml.default
 /usr/share/ssh-manager/yaml_parser.sh
+/usr/share/ssh-manager/VERSION
 /usr/share/bash-completion/completions/sshm
 /usr/share/zsh/site-functions/_sshm
 EOF
@@ -176,6 +179,7 @@ build_tarball() {
     cp "${PROJECT_ROOT}/bin/sshm.sh" "${TAR_DIR}/bin/sshm.sh"
     cp "${PROJECT_ROOT}/conf/config.yaml" "${TAR_DIR}/conf/config.yaml"
     cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${TAR_DIR}/lib/yaml_parser.sh"
+    cp "${PROJECT_ROOT}/VERSION" "${TAR_DIR}/VERSION"
     cp "${PROJECT_ROOT}/completions/sshm.bash" "${TAR_DIR}/completions/sshm.bash" 2>/dev/null || true
     cp "${PROJECT_ROOT}/completions/_sshm" "${TAR_DIR}/completions/_sshm" 2>/dev/null || true
     cp "${PROJECT_ROOT}/scripts/install.sh" "${TAR_DIR}/install.sh"

@@ -53,6 +53,8 @@ package() {
 
     cp "${startdir}/lib/yaml_parser.sh" "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
     chmod 644 "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
+    cp "${startdir}/VERSION" "${pkgdir}/usr/share/ssh-manager/VERSION"
+    chmod 644 "${pkgdir}/usr/share/ssh-manager/VERSION"
 
     cp "${startdir}/completions/sshm.bash" "${pkgdir}/usr/share/bash-completion/completions/sshm"
     chmod 644 "${pkgdir}/usr/share/bash-completion/completions/sshm"
