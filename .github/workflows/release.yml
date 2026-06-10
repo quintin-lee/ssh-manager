@@ -22,19 +22,17 @@ jobs:
           VERSION="${TAG#v}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "$VERSION" > VERSION
-          echo "Release version: $VERSION (tag: $TAG)"
 
-      - name: Install build dependencies
+      - name: Install build deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq rpm makeself
 
-      - name: Build packages (deb + tarball)
+      - name: Build deb + tarball
         run: |
           ./scripts/package.sh
           mkdir -p dist-save
           cp dist/*.deb dist/*.tar.gz dist-save/ 2>/dev/null || true
-          ls -lh dist-save/
 
       - name: Build RPM (Fedora)
         continue-on-error: true
@@ -45,13 +43,11 @@ jobs:
           '
           cp dist/*.rpm dist-save/ 2>/dev/null || true
           sudo chown -R "$(id -u):$(id -g)" build dist
-          ls -lh dist-save/
 
-      - name: Build self-extracting installer
+      - name: Build .run installer
         run: |
           ./scripts/build_makeself.sh
           cp ssh-manager-*.run dist-save/ 2>/dev/null || true
-          ls -lh dist-save/
 
       - name: Build Arch package
         continue-on-error: true
@@ -77,49 +73,6 @@ jobs:
             dist-save/*.pkg.tar.zst
             dist-save/ssh-manager-*.run
 
-      - name: Build RPM (Fedora)
-        continue-on-error: true
-        run: |
-          mkdir -p dist-rpm
-          docker run --rm -v "$PWD":/workspace -w /workspace -v "$PWD/dist-rpm":/out fedora:latest bash -c '
-            dnf install -y rpm-build
-            ./scripts/package.sh
-            cp dist/*.rpm /out/ 2>/dev/null || true
-          '
-          cp dist-rpm/*.rpm dist/ 2>/dev/null || true
-          rm -rf dist-rpm
-          sudo chown -R "$(id -u):$(id -g)" build dist
-          ls -lh dist/
-
-      - name: Build self-extracting installer
-        run: |
-          ./scripts/build_makeself.sh
-          ls -lh ssh-manager-*.run
-
-      - name: Build Arch package
-        continue-on-error: true
-        run: |
-          docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
-            pacman -Sy --noconfirm base-devel expect
-            useradd -m builder || usermod -e "" builder
-            chown -R builder:builder .
-            runuser -u builder -- makepkg -sf --noconfirm --nodeps
-            chown root:root ssh-manager-*.pkg.tar.zst
-          '
-          mv ssh-manager-*.pkg.tar.zst dist/ 2>/dev/null || true
-          sudo chown -R "$(id -u):$(id -g)" .
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages
-          path: |
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/*.pkg.tar.zst
-            ssh-manager-*.run
-
   verify:
     needs: build
     runs-on: ubuntu-latest
@@ -141,8 +94,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq expect
-          echo "=== Files available ==="
-          ls -la
 
       - name: Verify .deb
         if: matrix.format == 'deb'
@@ -152,14 +103,11 @@ jobs:
           sshm --version && sshm --help
           printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
           sshm --config /tmp/test-config.yaml --validate
-          echo "=== completions ==="
           test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
           test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
-          source /usr/share/bash-completion/completions/sshm
-          complete -p sshm && echo "bash registered: OK"
           sudo apt remove -y ssh-manager || sudo dpkg -r ssh-manager
 
-      - name: Verify .rpm (Fedora)
+      - name: Verify .rpm
         if: matrix.format == 'rpm'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace fedora:latest bash -c '
@@ -168,7 +116,6 @@ jobs:
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
             sshm --config /tmp/test-config.yaml --validate
-            echo "=== completions ==="
             test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
             test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
             rpm -e ssh-manager
@@ -184,7 +131,6 @@ jobs:
           sshm --version && sshm --help
           printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
           sshm --config /tmp/test-config.yaml --validate
-          echo "=== completions ==="
           test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
           test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
           sudo sshm-uninstall || true
@@ -204,17 +150,15 @@ jobs:
           sshm --config /tmp/test-config.yaml --validate
           sudo ssh-manager-uninstall || true
 
-      - name: Verify PKGBUILD
+      - name: Verify Arch
         if: matrix.format == 'arch'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
             pacman -Sy --noconfirm expect
-            useradd -m builder || usermod -e "" builder
             pacman -U --noconfirm ssh-manager-*.pkg.tar.zst
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
             sshm --config /tmp/test-config.yaml --validate
-            echo "=== completions ==="
             test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
             test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
             pacman -R --noconfirm ssh-manager
