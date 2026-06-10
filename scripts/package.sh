@@ -57,15 +57,8 @@ mkdir -p "${STAGING_DIR}/usr/share/doc/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/licenses/${APP_NAME}"
 mkdir -p "${STAGING_DIR}/usr/share/bash-completion/completions"
 mkdir -p "${STAGING_DIR}/usr/share/zsh/site-functions"
-mkdir -p "${STAGING_DIR}/usr/share/man/man1"
-
-cp "${PROJECT_ROOT}/bin/sshm.sh" "${STAGING_DIR}/usr/bin/sshm"
-chmod 755 "${STAGING_DIR}/usr/bin/sshm"
-cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
-chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
 cp "${PROJECT_ROOT}/completions/sshm.bash" "${STAGING_DIR}/usr/share/bash-completion/completions/sshm"
 cp "${PROJECT_ROOT}/completions/_sshm" "${STAGING_DIR}/usr/share/zsh/site-functions/_sshm"
-cp "${PROJECT_ROOT}/doc/sshm.1" "${STAGING_DIR}/usr/share/man/man1/sshm.1"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml"
 chmod 644 "${STAGING_DIR}/etc/ssh-manager/config.yaml"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${STAGING_DIR}/etc/ssh-manager/config.yaml.default"
@@ -132,13 +125,11 @@ mkdir -p %{buildroot}/etc/ssh-manager
 mkdir -p %{buildroot}/usr/share/ssh-manager
 mkdir -p %{buildroot}/usr/share/bash-completion/completions
 mkdir -p %{buildroot}/usr/share/zsh/site-functions
-mkdir -p %{buildroot}/usr/share/man/man1
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/bin/* %{buildroot}/usr/bin/
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/etc/ssh-manager/* %{buildroot}/etc/ssh-manager/
 cp -r ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/ssh-manager/* %{buildroot}/usr/share/ssh-manager/
 find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/bash-completion -type f -exec cp {} %{buildroot}/usr/share/bash-completion/completions/ \; 2>/dev/null || true
 find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/zsh -type f -exec cp {} %{buildroot}/usr/share/zsh/site-functions/ \; 2>/dev/null || true
-find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/man -type f -exec cp {} %{buildroot}/usr/share/man/man1/ \; 2>/dev/null || true
 %files
 /usr/bin/sshm
 %config(noreplace) /etc/ssh-manager/config.yaml
@@ -146,7 +137,6 @@ find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/man -type f -exec cp {} %{buildroot
 /usr/share/ssh-manager/yaml_parser.sh
 /usr/share/bash-completion/completions/sshm
 /usr/share/zsh/site-functions/_sshm
-/usr/share/man/man1/sshm.1
 EOF
         rpmbuild --define "_topdir ${RPM_ROOT}" -bb "${RPM_ROOT}/SPECS/${APP_NAME}.spec"
         find "${RPM_ROOT}/RPMS" -name "*.rpm" -exec cp {} "${OUTPUT_DIR}/" \;

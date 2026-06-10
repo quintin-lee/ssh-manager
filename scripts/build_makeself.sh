@@ -80,10 +80,14 @@ mkdir -p "${INSTALL_LIB_DIR}"
 cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
 chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
 
-# Also install to /usr/share for compatibility with .deb lookups
+# Also install to /usr/share and /usr/local/lib for max compatibility
 mkdir -p /usr/share/ssh-manager
 cp lib/yaml_parser.sh /usr/share/ssh-manager/yaml_parser.sh
 chmod 644 /usr/share/ssh-manager/yaml_parser.sh
+
+mkdir -p /usr/local/lib 2>/dev/null || true
+cp lib/yaml_parser.sh /usr/local/lib/yaml_parser.sh 2>/dev/null || true
+chmod 644 /usr/local/lib/yaml_parser.sh 2>/dev/null || true
 
 # Install completions
 echo "Installing shell completions..."
