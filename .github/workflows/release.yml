@@ -54,16 +54,15 @@ jobs:
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
             pacman -Sy --noconfirm base-devel expect
-            useradd -m builder || usermod -e "" builder
-            chown -R builder:builder .
-            runuser -u builder -- makepkg -f --noconfirm
-            echo "=== makepkg output files ==="
-            ls -la *.pkg.tar.zst 2>/dev/null || echo "NO PKG FILES"
-            chown root:root ssh-manager-*.pkg.tar.zst 2>/dev/null || true
+            # makepkg refuses to run as root, use nobody
+            usermod -e "" nobody 2>/dev/null || true
+            chown -R nobody:root .
+            runuser -u nobody -- makepkg -f --noconfirm
+            chown root:root *.pkg.tar.zst 2>/dev/null || true
+            ls -la *.pkg.tar.zst || echo "NO PKG FILES"
           '
-          echo "=== host files ==="
-          ls -la ssh-manager-*.pkg.tar.zst 2>/dev/null || echo "NO PKG FILES ON HOST"
-          mv ssh-manager-*.pkg.tar.zst dist-save/ 2>/dev/null || true
+          ls -la *.pkg.tar.zst 2>/dev/null || echo "NO PKG ON HOST"
+          mv *.pkg.tar.zst dist-save/ 2>/dev/null || true
           sudo chown -R "$(id -u):$(id -g)" .
 
       - name: Upload artifacts
