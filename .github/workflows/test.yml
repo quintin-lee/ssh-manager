@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        format: [deb, rpm, run, tarball]
+        format: [deb, rpm, run, tarball, arch]
 
     steps:
       - uses: actions/checkout@v4
@@ -137,3 +137,20 @@ jobs:
           printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
           sshm --config /tmp/test-config.yaml --validate
           sudo ssh-manager-uninstall || true
+
+      - name: Verify PKGBUILD
+        if: matrix.format == 'arch'
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
+            pacman -Sy --noconfirm expect base-devel
+            chown -R nobody:root .
+            su -s /bin/bash nobody -c "cd /workspace && makepkg -sf --noconfirm"
+            pacman -U --noconfirm ssh-manager-*.pkg.tar.zst
+            sshm --version && sshm --help
+            printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml
+            sshm --config /tmp/test-config.yaml --validate
+            echo "=== completions ==="
+            test -f /usr/share/bash-completion/completions/sshm && echo "bash: OK"
+            test -f /usr/share/zsh/site-functions/_sshm && echo "zsh: OK"
+            pacman -R --noconfirm ssh-manager
+          '
