@@ -94,6 +94,8 @@ CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/../lib/yaml_parser.sh" ]]; then
     source "${SCRIPT_DIR}/../lib/yaml_parser.sh"
+elif [[ -f "/usr/share/ssh-manager/yaml_parser.sh" ]]; then
+    source "/usr/share/ssh-manager/yaml_parser.sh"
 elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
     source "/usr/local/share/ssh-manager/yaml_parser.sh"
 else
