@@ -83,6 +83,11 @@ jobs:
           sshm --version && sshm --help
           printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
           sshm --config /tmp/test-config.yaml --validate
+          echo "=== verify completions ==="
+          test -f /usr/share/bash-completion/completions/sshm && echo "bash completion: OK"
+          test -f /usr/share/zsh/site-functions/_sshm && echo "zsh completion: OK"
+          source /usr/share/bash-completion/completions/sshm
+          complete -p sshm && echo "bash complete registered: OK"
           sudo apt remove -y ssh-manager || sudo dpkg -r ssh-manager
 
       - name: Verify .rpm
@@ -108,6 +113,10 @@ jobs:
           sshm --version && sshm --help
           printf 'nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n' > /tmp/test-config.yaml
           sshm --config /tmp/test-config.yaml --validate
+          echo "=== verify completions ==="
+          test -f /usr/local/share/bash-completion/completions/sshm 2>/dev/null && echo "bash completion: OK" || true
+          test -f /usr/share/bash-completion/completions/sshm && echo "bash completion: OK"
+          test -f /usr/share/zsh/site-functions/_sshm && echo "zsh completion: OK"
           sudo sshm-uninstall || true
 
       - name: Verify tarball
