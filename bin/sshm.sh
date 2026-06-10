@@ -91,6 +91,18 @@ RESET=$'\033[0m'
 
 CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
+for arg in "$@"; do
+    case "$arg" in
+        --help|-h)
+            echo "SSH Manager - SSH connection management tool"
+            echo "Usage: sshm [keyword|--help|--version|--config path|--validate|--import-ssh-config f|--export-ssh-config]"
+            exit 0 ;;
+        --version|-v)
+            echo "SSH Manager v$(cat "${BASH_SOURCE[0]%/*}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")"
+            exit 0 ;;
+    esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/../lib/yaml_parser.sh" ]]; then
     source "${SCRIPT_DIR}/../lib/yaml_parser.sh"
