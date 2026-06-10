@@ -87,23 +87,54 @@ BLUE=$'\033[34m'
 CYAN=$'\033[36m'
 RESET=$'\033[0m'
 
-_DARK_THEME=1
-_toggle_theme() {
-    if [[ "${_DARK_THEME:-1}" -eq 1 ]]; then
-        RED=$'\033[91m'
-        GREEN=$'\033[92m'
-        YELLOW=$'\033[93m'
-        BLUE=$'\033[94m'
-        CYAN=$'\033[96m'
-        _DARK_THEME=0
-    else
-        RED=$'\033[31m'
-        GREEN=$'\033[32m'
-        YELLOW=$'\033[33m'
-        BLUE=$'\033[34m'
-        CYAN=$'\033[36m'
-        _DARK_THEME=1
-    fi
+declare -A _THEMES
+_THEMES[dark]="31 32 33 34 36 深色"
+_THEMES[light]="91 92 93 94 96 亮色"
+_THEMES[ocean]="36 32 33 34 36 海洋"
+_THEMES[sunset]="33 31 33 35 31 日落"
+_THEMES[forest]="32 32 33 34 32 森林"
+_THEME_NAMES=(dark light ocean sunset forest)
+_THEME_IDX=0
+
+_apply_theme() {
+    local name="$1"
+    local codes
+    IFS=' ' read -r r g y b c _ <<<"${_THEMES[$name]}"
+    RED=$'\033['"${r}"'m'
+    GREEN=$'\033['"${g}"'m'
+    YELLOW=$'\033['"${y}"'m'
+    BLUE=$'\033['"${b}"'m'
+    CYAN=$'\033['"${c}"'m'
+}
+
+_choose_theme() {
+    local sel=0
+    while true; do
+        printf '\033[H\033[J'
+        echo ""
+        _echo "  ${CYAN}==== 选择主题 ====${RESET}\n"
+        for i in "${!_THEME_NAMES[@]}"; do
+            local tname="${_THEME_NAMES[$i]}"
+            local label="${_THEMES[$tname]##* }"
+            local arrow="  "
+            [[ $i -eq $sel ]] && arrow="${BLUE}>${RESET} "
+            local r g y b c
+            IFS=' ' read -r r g y b c _ <<<"${_THEMES[$tname]}"
+            local sample="\033[${r}m●\033[${g}m●\033[${y}m●\033[${b}m●\033[${c}m●${RESET}"
+            _echo "${arrow}${sample}  ${label}"
+        done
+        echo ""
+        _echo "  ${BLUE}↑↓${RESET}选择  ${BLUE}Enter${RESET}确认  ${BLUE}q${RESET}取消"
+
+        local key
+        key=$(_read_key)
+        case "$key" in
+            UP)    ((sel > 0)) && ((sel--)) ;;
+            DOWN)  ((sel < ${#_THEME_NAMES[@]} - 1)) && ((sel++)) ;;
+            ENTER) _apply_theme "${_THEME_NAMES[$sel]}"; return ;;
+            q|Q)   return ;;
+        esac
+    done
 }
 
 CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
@@ -687,7 +718,7 @@ _interactive_list() {
             fi
             ;;
         t|T)
-            _toggle_theme
+            _choose_theme
             ;;
         i|I)
             import_config
