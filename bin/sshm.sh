@@ -90,9 +90,9 @@ RESET=$'\033[0m'
 declare -A _THEMES
 _THEMES[dark]="31 32 33 34 36 深色"
 _THEMES[light]="91 92 93 94 96 亮色"
-_THEMES[ocean]="36 32 33 34 36 海洋"
-_THEMES[sunset]="33 31 33 35 31 日落"
-_THEMES[forest]="32 32 33 34 32 森林"
+_THEMES[ocean]="36 34 37 36 34 海洋"
+_THEMES[sunset]="31 33 35 33 31 日落"
+_THEMES[forest]="32 36 33 34 32 森林"
 _THEME_NAMES=(dark light ocean sunset forest)
 _THEME_IDX=0
 
