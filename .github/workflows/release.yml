@@ -41,6 +41,7 @@ jobs:
 
       - name: Verify .deb install
         run: |
+          sudo apt-get install -y -qq expect
           sudo dpkg -i dist/ssh-manager_*.deb
           hash -r
           echo "=== sshm --version ==="
