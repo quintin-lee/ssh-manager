@@ -80,6 +80,11 @@ mkdir -p "${INSTALL_LIB_DIR}"
 cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
 chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
 
+# Also install to /usr/share for compatibility with .deb lookups
+mkdir -p /usr/share/ssh-manager
+cp lib/yaml_parser.sh /usr/share/ssh-manager/yaml_parser.sh
+chmod 644 /usr/share/ssh-manager/yaml_parser.sh
+
 # Install completions
 echo "Installing shell completions..."
 if [ -f completions/sshm.bash ]; then
@@ -125,6 +130,8 @@ fi
 rm -f ${INSTALL_BIN}
 rm -f ${INSTALL_LIB_DIR}/yaml_parser.sh
 rmdir ${INSTALL_LIB_DIR} 2>/dev/null || true
+rm -f /usr/share/ssh-manager/yaml_parser.sh
+rmdir /usr/share/ssh-manager 2>/dev/null || true
 rm -f /usr/share/bash-completion/completions/sshm
 rm -f /usr/share/zsh/site-functions/_sshm
 rm -f /usr/local/bin/sshm-uninstall
