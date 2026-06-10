@@ -38,6 +38,44 @@ jobs:
           ./scripts/build_makeself.sh
           ls -lh ssh-manager-*.run
 
+      - name: Verify .deb install
+        run: |
+          sudo dpkg -i dist/ssh-manager_*.deb
+          echo "--- sshm --version ---"
+          sshm --version
+          echo "--- sshm --help ---"
+          sshm --help
+          echo "--- sshm --validate ---"
+          cat > /tmp/test-config.yaml << 'YAML'
+          nodes:
+            - name: test
+              host: 127.0.0.1
+              user: root
+          YAML
+          sshm --config /tmp/test-config.yaml --validate
+          echo "--- uninstall ---"
+          sudo apt remove -y ssh-manager
+
+      - name: Verify .run installer
+        run: |
+          chmod +x ssh-manager-*.run
+          sudo ./ssh-manager-*.run
+          echo "--- sshm --version ---"
+          sshm --version
+          echo "--- uninstall ---"
+          sudo sshm-uninstall || true
+
+      - name: Verify tarball install
+        run: |
+          tar xzf dist/ssh-manager-*.tar.gz
+          cd ssh-manager-*/
+          sudo ./install.sh
+          echo "--- sshm --version ---"
+          sshm --version
+          echo "--- uninstall ---"
+          sudo ssh-manager-uninstall || true
+          cd ..
+
       - name: Generate checksums
         run: |
           cd dist
