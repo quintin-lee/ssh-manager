@@ -462,7 +462,13 @@ _render_list() {
         id_str=$(printf "%-4d" $display_id)
         id_str="${GREEN}${id_str}${RESET}"
 
-        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$name" "$host:$port" "$type")"
+        local disp_name="$name"
+        if [[ -n "$filter_key" ]]; then
+            local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
+            [[ "$hl_name" != "$name" ]] && disp_name="$hl_name"
+        fi
+
+        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")"
         ((display_id++))
         ((idx++))
     done
@@ -473,6 +479,16 @@ _render_list() {
         echo ""
         _echo "${YELLOW}  ${empty_msg}${RESET}"
         echo ""
+    fi
+
+    local total_nodes=${#disp_nodes[@]}
+    if [[ $total_nodes -gt 15 ]]; then
+        if [[ $selected_idx -gt 10 ]]; then
+            _echo "  ${YELLOW}▲ 上方还有节点${RESET}"
+        fi
+        if [[ $selected_idx -lt $((total_nodes - 10)) ]]; then
+            _echo "  ${YELLOW}▼ 下方还有节点 (${total_nodes} total)${RESET}"
+        fi
     fi
 
     echo "$sep"
@@ -491,7 +507,7 @@ _render_list() {
         sel_info=" | ${BLUE}${sel_name}${RESET}@${GREEN}${sel_host}${RESET}"
     fi
 
-    _echo "${mode_hint}${total}节点${sel_info} | ${BLUE}↑↓${RESET}选 ${BLUE}Enter${RESET}连 ${BLUE}p${RESET}预览 ${BLUE}e${RESET}编辑 ${BLUE}s${RESET}排序[${sort_label}] ${BLUE}a${RESET}加 ${BLUE}d${RESET}删 ${BLUE}x${RESET}导出 ${BLUE}t${RESET}主题 ${BLUE}q${RESET}退"
+    _echo "${mode_hint}${total}节点${sel_info} | ${BLUE}↑↓${RESET}选 ${BLUE}1-9${RESET}快连 ${BLUE}Enter${RESET}连 ${BLUE}e${RESET}编 ${BLUE}p${RESET}预览 ${BLUE}s${RESET}排 ${BLUE}u${RESET}撤删 ${BLUE}a${RESET}加 ${BLUE}d${RESET}删 ${BLUE}x${RESET}导出 ${BLUE}t${RESET}主题 ${BLUE}q${RESET}退"
     [[ -n "$filter_key" ]] && _echo "过滤: ${YELLOW}${filter_key}${RESET} (ESC 清除)"
 }
 
@@ -598,6 +614,25 @@ EOF
     else
         _echo "${RED}保存失败${RESET}"; sleep 1; rm -f "$tmp_file"
     fi
+}
+
+_undo_delete() {
+    if [[ -z "${_DELETED_YAML:-}" ]]; then
+        _echo "\n${YELLOW}没有可恢复的节点${RESET}"; sleep 1; return
+    fi
+    _backup_config
+    if cat >>"$CONF" <<EOF
+${_DELETED_YAML}
+EOF
+    then
+        local name
+        name=$(echo "$_DELETED_YAML" | grep 'name:' | sed 's/.*name: *//')
+        _echo "${GREEN}已恢复节点: ${name}${RESET}"
+        unset _DELETED_YAML
+    else
+        _echo "${RED}恢复失败${RESET}"
+    fi
+    sleep 1
 }
 
 _interactive_list() {
@@ -736,6 +771,24 @@ _interactive_list() {
             local total=${#_RENDERED_NODES[@]}
             ((total > 0)) && selected_idx=$((total - 1))
             ;;
+        u|U)
+            _undo_delete
+            ;;
+        1|2|3|4|5|6|7|8|9)
+            local num_idx=$((key - 1))
+            if [[ $num_idx -lt ${#_RENDERED_NODES[@]} ]]; then
+                local tn ode_id ode_name ode_host
+                tn="${_RENDERED_NODES[$num_idx]}"
+                ode_id=$(echo "$tn" | cut -d'|' -f1)
+                ode_name=$(echo "$tn" | cut -d'|' -f2)
+                ode_host=$(echo "$tn" | cut -d'|' -f4)
+                _record_connection "$ode_name" "$ode_host"
+                printf '\033[H\033[J'
+                _echo "\n\n  ${BLUE}>>> ${YELLOW}${ode_name}${RESET} @ ${GREEN}${ode_host}${RESET}\n"
+                ssh_connect "$ode_id"
+                local cs=$?; [[ $cs -ne 0 ]] && sleep 1.5
+            fi
+            ;;
         $'\177'|$'\010')
             if [[ -n "$filter_key" ]]; then
                 filter_key="${filter_key%?}"
@@ -768,6 +821,15 @@ perform_delete() {
         sleep 1
         return 0
     fi
+
+    _DELETED_YAML="  - name: $(sanitize_yaml_value "$NODE_NAME")
+    group: $(sanitize_yaml_value "$NODE_GROUP")
+    host: $(sanitize_yaml_value "$NODE_HOST")
+    port: $NODE_PORT
+    user: $(sanitize_yaml_value "$NODE_USER")
+    type: $NODE_TYPE
+    pass: $(sanitize_yaml_value "$NODE_PASS")
+    keypath: $(sanitize_yaml_value "$NODE_KEYPATH")"
 
     local tmp_file
     tmp_file=$(mktemp) || { _echo "${RED}错误：无法创建临时文件${RESET}"; return 1; }
