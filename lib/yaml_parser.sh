@@ -152,7 +152,7 @@ get_all_nodes() {
             match=0
         fi
         if [[ $match -eq 1 ]]; then
-            NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type")
+            NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type|$node_tags")
         fi
     fi
 }
