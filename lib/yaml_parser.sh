@@ -54,6 +54,8 @@ read_node_info() {
             elif [[ "$line" =~ ^[[:space:]]*tags:[[:space:]]* ]]; then
                 NODE_TAGS=$(echo "$line" | sed 's/^[[:space:]]*tags:[[:space:]]*//')
                 NODE_TAGS="${NODE_TAGS// /}"
+                NODE_TAGS="${NODE_TAGS#\"}"; NODE_TAGS="${NODE_TAGS%\"}"
+                NODE_TAGS="${NODE_TAGS#\'}"; NODE_TAGS="${NODE_TAGS%\'}"
             elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
                 break
             fi
@@ -129,6 +131,8 @@ get_all_nodes() {
             elif [[ "$line" =~ ^[[:space:]]*tags:[[:space:]]* ]]; then
                 node_tags=$(echo "$line" | sed 's/^[[:space:]]*tags:[[:space:]]*//')
                 node_tags="${node_tags// /}"
+                node_tags="${node_tags#\"}"; node_tags="${node_tags%\"}"
+                node_tags="${node_tags#\'}"; node_tags="${node_tags%\'}"
             fi
         fi
     done <"$conf"
