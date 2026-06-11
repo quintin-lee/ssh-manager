@@ -481,7 +481,9 @@ _render_list() {
             local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
             [[ "$hl_name" != "$name" ]] && disp_name="$hl_name"
         fi
-        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")${tags:+ ${CYAN}[${tags//,/ }]${RESET}}"
+        local disp_tags="${tags//\"/}"
+        disp_tags="${disp_tags//,/ }"
+        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")${disp_tags:+ ${CYAN}[${disp_tags}]${RESET}}"
         ((display_id++)); ((idx++)); ((row++))
     done
 
@@ -541,7 +543,7 @@ _edit_node() {
 
     local n="${NODE_NAME:-$name}" g="${NODE_GROUP:-$group}" h="${NODE_HOST:-$host}"
     local p="${NODE_PORT:-$port}" u="${NODE_USER:-$name}" t="${NODE_TYPE:-$type}"
-    local kp="${NODE_KEYPATH:-}" ps="${NODE_PASS:-}"
+    local kp="${NODE_KEYPATH:-}" ps="${NODE_PASS:-}" tags="${NODE_TAGS:-}"
 
     while true; do
         local aclabel="密码"; [[ "$t" == "key" ]] && aclabel="密钥"
@@ -557,11 +559,15 @@ _edit_node() {
         if [[ "$t" == "key" ]]; then
             _echo "  ${GREEN}[7]${RESET} 私钥: ${YELLOW}${kp:-(必填)}${RESET}"
             _echo "  ${GREEN}[8]${RESET} 短语: ${YELLOW}${pass_display}${RESET}"
+            _echo "  ${GREEN}[9]${RESET} 标签: ${YELLOW}${tags:-(无)}${RESET}"
+            local tag_max=9
         else
             _echo "  ${GREEN}[7]${RESET} 密码: ${YELLOW}${pass_display}${RESET}"
+            _echo "  ${GREEN}[8]${RESET} 标签: ${YELLOW}${tags:-(无)}${RESET}"
+            local tag_max=8
         fi
         echo ""
-        _echo "  ${GREEN}Enter${RESET}=保存  ${BLUE}1-$([[ "$t" == "key" ]] && echo 8 || echo 7)${RESET}=编辑  ${RED}q${RESET}=取消"
+        _echo "  ${GREEN}Enter${RESET}=保存  ${BLUE}1-${tag_max}${RESET}=编辑  ${RED}q${RESET}=取消"
 
         local key
         key=$(_read_key)
@@ -580,7 +586,12 @@ _edit_node() {
         7) if [[ "$t" == "key" ]]; then
                 while true; do read -r -p "私钥: " v; v=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//'); [[ -z "$v" ]] && break; [[ -f "$v" ]] && { kp="$v"; break; }; _echo "${RED}文件不存在${RESET}"; done
            else read -s -r -p "密码: " v; echo ""; [[ -n "$v" ]] && ps="$v"; fi ;;
-        8) [[ "$t" == "key" ]] && { read -s -r -p "短语: " v; echo ""; [[ -n "$v" ]] && ps="$v"; } ;;
+        8) if [[ "$t" == "key" ]]; then
+                read -s -r -p "短语: " v; echo ""; [[ -n "$v" ]] && ps="$v"
+            else
+                read -r -p "标签(逗号分隔): " v; tags=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            fi ;;
+        9) read -r -p "标签(逗号分隔): " v; tags=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//') ;;
         esac
     done
 
@@ -606,7 +617,7 @@ _edit_node() {
     type: $t
     pass: $(sanitize_yaml_value "$ps")
     keypath: $(sanitize_yaml_value "$kp")
-    tags: "$tags"
+    tags: $(sanitize_yaml_value "$tags")
 EOF
     if mv "$tmp_file" "$CONF"; then
         _echo "${GREEN}节点已更新: $n${RESET}"; sleep 1
@@ -832,7 +843,7 @@ perform_delete() {
     type: $NODE_TYPE
     pass: $(sanitize_yaml_value "$NODE_PASS")
     keypath: $(sanitize_yaml_value "$NODE_KEYPATH")
-    tags: \"${NODE_TAGS:-}\""
+    tags: ${NODE_TAGS:-}"
 
     local tmp_file
     tmp_file=$(mktemp) || { _echo "${RED}错误：无法创建临时文件${RESET}"; return 1; }
@@ -1025,7 +1036,7 @@ add_node() {
     type: $t
     pass: $(sanitize_yaml_value "$ps")
     keypath: $(sanitize_yaml_value "$kp")
-    tags: "$tags"
+    tags: $(sanitize_yaml_value "$tags")
 EOF
     then
         _echo "${GREEN}节点 [$n] 已成功添加。 (${h}:${p} ${u}@${t})${RESET}"
