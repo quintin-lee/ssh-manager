@@ -404,20 +404,45 @@ _render_list() {
         _LAST_FILTER="$filter_key"
         if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
             local sorted_output
-            case "${_SORT_MODE:-group}" in
-                name)   sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k2,2) ;;
-                status) sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}") ;;
-                *)      sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2) ;;
-            esac
-            NODES_ARRAY=()
-            while IFS= read -r line; do [[ -n "$line" ]] && NODES_ARRAY+=("$line"); done <<<"$sorted_output"
+            local tag_filters=()
+            local name_filter="$filter_key"
+            # Extract #tag filters
+            for word in $filter_key; do
+                [[ "$word" == \#* ]] && tag_filters+=("${word#\#}") && name_filter="${name_filter//$word/}"
+            done
+            name_filter=$(echo "$name_filter" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # Filter by tags if needed
+            if [[ ${#tag_filters[@]} -gt 0 ]]; then
+                local filtered=()
+                for node in "${NODES_ARRAY[@]}"; do
+                    local node_tags
+                    node_tags=$(echo "$node" | cut -d'|' -f7)
+                    local match=1
+                    for tf in "${tag_filters[@]}"; do
+                        [[ ",${node_tags}," != *",${tf},"* ]] && match=0 && break
+                    done
+                    [[ $match -eq 1 ]] && filtered+=("$node")
+                done
+                NODES_ARRAY=("${filtered[@]}")
+            fi
+            if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
+                local sorted_output
+                case "${_SORT_MODE:-group}" in
+                    name)   sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k2,2) ;;
+                    status) sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}") ;;
+                    *)      sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2) ;;
+                esac
+                NODES_ARRAY=()
+                while IFS= read -r line; do [[ -n "$line" ]] && NODES_ARRAY+=("$line"); done <<<"$sorted_output"
+            fi
         fi
     fi
 
     local disp_nodes=() found=0
     for node in "${NODES_ARRAY[@]}"; do
-        IFS='|' read -r original_id name group host port type <<<"$node"
-        disp_nodes+=("$original_id|$name|$group|$host|$port|$type"); found=1
+        IFS='|' read -r original_id name group host port type tags <<<"$node"
+        disp_nodes+=("$original_id|$name|$group|$host|$port|$type|${tags:-}")
+        found=1
     done
     _RENDERED_NODES=("${disp_nodes[@]}")
 
@@ -444,7 +469,7 @@ _render_list() {
         [[ $idx -lt ${_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
         [[ $row -ge $visible_h ]] && break
 
-        IFS='|' read -r original_id name group host port type <<<"$node"
+        IFS='|' read -r original_id name group host port type tags <<<"$node"
         local alive="●"
         _ping_check "$host" && alive="${GREEN}●${RESET}" || alive="${RED}●${RESET}"
         local st="  ${alive}   "
@@ -456,7 +481,7 @@ _render_list() {
             local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
             [[ "$hl_name" != "$name" ]] && disp_name="$hl_name"
         fi
-        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")"
+        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")${tags:+ ${CYAN}[${tags//,/ }]${RESET}}"
         ((display_id++)); ((idx++)); ((row++))
     done
 
@@ -581,6 +606,7 @@ _edit_node() {
     type: $t
     pass: $(sanitize_yaml_value "$ps")
     keypath: $(sanitize_yaml_value "$kp")
+    tags: "$tags"
 EOF
     if mv "$tmp_file" "$CONF"; then
         _echo "${GREEN}节点已更新: $n${RESET}"; sleep 1
@@ -805,7 +831,8 @@ perform_delete() {
     user: $(sanitize_yaml_value "$NODE_USER")
     type: $NODE_TYPE
     pass: $(sanitize_yaml_value "$NODE_PASS")
-    keypath: $(sanitize_yaml_value "$NODE_KEYPATH")"
+    keypath: $(sanitize_yaml_value "$NODE_KEYPATH")
+    tags: \"${NODE_TAGS:-}\""
 
     local tmp_file
     tmp_file=$(mktemp) || { _echo "${RED}错误：无法创建临时文件${RESET}"; return 1; }
@@ -871,7 +898,7 @@ sanitize_yaml_value() {
 }
 
 add_node() {
-    local n="" g="Default" h="" p="22" u="root" t="pass" kp="" ps=""
+    local n="" g="Default" h="" p="22" u="root" t="pass" kp="" ps="" tags=""
 
     while true; do
         case "$t" in key) aclabel="密钥" ;; *) aclabel="密码" ;; esac
@@ -892,11 +919,13 @@ add_node() {
         else
             _echo "  ${GREEN}[7]${RESET} 密码: ${YELLOW}${pass_display}${RESET}"
         fi
+        local tag_max=8; [[ "$t" == "key" ]] && tag_max=9
+        _echo "  ${GREEN}[${tag_max}]${RESET} 标签: ${YELLOW}${tags:-(无)}${RESET}"
         echo ""
         if [[ -n "$n" && -n "$h" && ( "$t" != "key" || -n "$kp" ) ]]; then
-            _echo "  ${GREEN}Enter${RESET}=保存  ${BLUE}1-$([[ "$t" == "key" ]] && echo 8 || echo 7)${RESET}=编辑  ${RED}q${RESET}=取消"
+            _echo "  ${GREEN}Enter${RESET}=保存  ${BLUE}1-${tag_max}${RESET}=编辑  ${RED}q${RESET}=取消"
         else
-            _echo "  ${BLUE}1-$([[ "$t" == "key" ]] && echo 8 || echo 7)${RESET}=编辑  ${RED}q${RESET}=取消"
+            _echo "  ${BLUE}1-${tag_max}${RESET}=编辑  ${RED}q${RESET}=取消"
         fi
 
         local key
@@ -976,7 +1005,12 @@ add_node() {
                 read -s -r -p "短语: " ps_val
                 echo ""
                 [[ -n "$ps_val" ]] && ps="$ps_val"
+            else
+                read -r -p "标签(逗号分隔): " t_val
+                tags=$(echo "$t_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             fi ;;
+        9)  read -r -p "标签(逗号分隔): " t_val
+            tags=$(echo "$t_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//') ;;
         esac
     done
 
@@ -991,6 +1025,7 @@ add_node() {
     type: $t
     pass: $(sanitize_yaml_value "$ps")
     keypath: $(sanitize_yaml_value "$kp")
+    tags: "$tags"
 EOF
     then
         _echo "${GREEN}节点 [$n] 已成功添加。 (${h}:${p} ${u}@${t})${RESET}"

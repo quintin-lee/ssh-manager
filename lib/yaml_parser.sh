@@ -9,7 +9,7 @@ _trim() {
 read_node_info() {
     local conf="$1"
     local id=$2
-    unset NODE_NAME NODE_GROUP NODE_HOST NODE_PORT NODE_USER NODE_TYPE NODE_PASS NODE_KEYPATH
+    unset NODE_NAME NODE_GROUP NODE_HOST NODE_PORT NODE_USER NODE_TYPE NODE_PASS NODE_KEYPATH NODE_TAGS
 
     local in_node=0
     local current_id=0
@@ -51,6 +51,9 @@ read_node_info() {
                 elif [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH:(-1)}" == "''" ]]; then
                     NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
                 fi
+            elif [[ "$line" =~ ^[[:space:]]*tags:[[:space:]]* ]]; then
+                NODE_TAGS=$(echo "$line" | sed 's/^[[:space:]]*tags:[[:space:]]*//')
+                NODE_TAGS="${NODE_TAGS// /}"
             elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
                 break
             fi
@@ -69,6 +72,7 @@ read_node_info() {
     NODE_TYPE=$(_trim "${NODE_TYPE:-}")
     NODE_PASS=$(_trim "${NODE_PASS:-}")
     NODE_KEYPATH=$(_trim "${NODE_KEYPATH:-}")
+    NODE_TAGS=$(_trim "${NODE_TAGS:-}")
 }
 
 get_all_nodes() {
@@ -84,6 +88,7 @@ get_all_nodes() {
     local node_host=""
     local node_port=""
     local node_type=""
+    local node_tags=""
     local in_node=0
 
     while IFS= read -r line; do
@@ -97,7 +102,7 @@ get_all_nodes() {
                     match=0
                 fi
                 if [[ $match -eq 1 ]]; then
-                    NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type")
+                    NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type|$node_tags")
                 fi
             fi
 
@@ -105,10 +110,11 @@ get_all_nodes() {
             in_node=1
             node_name=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
             node_group="Default"
-            node_host=""
-            node_port="22"
-            node_type="pass"
-            continue
+                node_host=""
+                node_port="22"
+                node_type="pass"
+                node_tags=""
+                continue
         fi
 
         if [[ $in_node -eq 1 ]]; then
@@ -120,6 +126,9 @@ get_all_nodes() {
                 node_port=$(echo "$line" | sed 's/^[[:space:]]*port:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]* ]]; then
                 node_type=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
+            elif [[ "$line" =~ ^[[:space:]]*tags:[[:space:]]* ]]; then
+                node_tags=$(echo "$line" | sed 's/^[[:space:]]*tags:[[:space:]]*//')
+                node_tags="${node_tags// /}"
             fi
         fi
     done <"$conf"
