@@ -1,202 +1,219 @@
 #include "import_export.h"
 #include "config.h"
 #include "yaml_parser.h"
+#include "tui.h"
 #include "util.h"
+#include <ncurses.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+static char *read_line_win(WINDOW *win, int y, int x, int max_len) {
+    char *buf = calloc(max_len + 1, 1);
+    if (!buf) return NULL;
+    int pos = 0;
+    curs_set(1);
+    while (1) {
+        wmove(win, y, x + pos);
+        wrefresh(win);
+        int c = wgetch(win);
+        if (c == '\n' || c == KEY_ENTER) {
+            break;
+        } else if ((c == KEY_BACKSPACE || c == 127 || c == '\b') && pos > 0) {
+            pos--;
+            buf[pos] = '\0';
+            mvwprintw(win, y, x, "%-*s", max_len, "");
+            mvwprintw(win, y, x, "%s", buf);
+        } else if (c >= 32 && c <= 126 && pos < max_len) {
+            buf[pos++] = c;
+            buf[pos] = '\0';
+            mvwprintw(win, y, x, "%s", buf);
+        } else if (c == 27 || c == ERR) {
+            free(buf);
+            curs_set(0);
+            return NULL;
+        }
+    }
+    curs_set(0);
+    return buf;
+}
+
 int export_config_interactive(void) {
     if (!g_config_path) {
-        printf("%s配置文件未初始化%s\n", ANSI_RED, ANSI_RESET);
-        sleep(1);
+        show_toast(" Config not initialized ", 1);
         return -1;
     }
 
-    printf("\n--- %s配置导出选项%s ---\n", ANSI_BLUE, ANSI_RESET);
-    printf("1) %s屏幕输出 Base64%s (适合复制分享)\n", ANSI_YELLOW, ANSI_RESET);
-    printf("2) %s保存到文件%s (适合备份)\n", ANSI_YELLOW, ANSI_RESET);
-    printf("%s选择导出方式 (1/2): %s", ANSI_GREEN, ANSI_RESET);
-    fflush(stdout);
+    int h = 8, w = 44;
+    WINDOW *win = create_win(h, w, " Export Config ");
+    if (!win) return -1;
 
-    char choice = getchar();
-    while (getchar() != '\n');
+    mvwprintw(win, 2, 2, "1. Base64 to screen (shareable)");
+    mvwprintw(win, 3, 2, "2. Save to file (backup)");
+    wattron(win, A_DIM);
+    mvwprintw(win, h - 1, 2, "1/2 select  q cancel");
+    wattroff(win, A_DIM);
+    wrefresh(win);
 
-    switch (choice) {
-        case '1': {
-            FILE *f = fopen(g_config_path, "r");
-            if (!f) {
-                printf("%s导出失败：无法读取配置文件%s\n", ANSI_RED, ANSI_RESET);
-                sleep(2);
-                return -1;
-            }
+    int ch = wgetch(win);
+    close_win(win);
 
-            char cmd[4096];
-            snprintf(cmd, sizeof(cmd), "base64 < \"%s\" | tr -d '\\n'", g_config_path);
-
-            printf("\n--- %sBASE64 配置导出%s ---\n", ANSI_BLUE, ANSI_RESET);
-            printf("%s注意：此内容包含敏感的密码信息，请妥善保管！%s\n\n", ANSI_YELLOW, ANSI_RESET);
-            fflush(stdout);
-
-            int ret = system(cmd);
-
-            printf("\n------------------------\n");
-            printf("按任意键返回...");
-            fflush(stdout);
-            getchar();
-            fclose(f);
-            return ret;
-        }
-        case '2': {
-            char path[4096] = "./ssh-manager-config.yaml";
-            printf("请输入导出文件路径 (默认: ./ssh-manager-config.yaml): ");
-            fflush(stdout);
-            if (fgets(path, sizeof(path), stdin)) {
-                char *t = str_trim(path);
-                if (t[0] == '\0') strcpy(path, "./ssh-manager-config.yaml");
-                else { memmove(path, t, strlen(t) + 1); }
-            }
-
-            char cmd[8192];
-            snprintf(cmd, sizeof(cmd), "cp \"%s\" \"%s\" && chmod 600 \"%s\" 2>/dev/null",
-                     g_config_path, path, path);
-            if (system(cmd) == 0) {
-                printf("%s配置已导出到: %s%s\n", ANSI_GREEN, path, ANSI_RESET);
-            } else {
-                printf("%s导出失败%s\n", ANSI_RED, ANSI_RESET);
-            }
-            sleep(2);
+    if (ch == '1') {
+        if (!show_confirm_dialog(" Export Base64 ",
+                                 "Warning: contains sensitive data!")) {
             return 0;
         }
-        default:
-            printf("%s无效选择%s\n", ANSI_RED, ANSI_RESET);
-            sleep(1);
-            return -1;
+        show_toast(" Exporting Base64... ", 5);
+
+        char cmd[4096];
+        snprintf(cmd, sizeof(cmd), "base64 < \"%s\" 2>/dev/null", g_config_path);
+
+        def_prog_mode();
+        endwin();
+        printf("\n--- Base64 Config ---\n");
+        fflush(stdout);
+        int ret = system(cmd);
+        printf("\n--------------------\nPress Enter to continue...");
+        fflush(stdout);
+        getchar();
+        refresh();
+
+        show_toast(ret == 0 ? " Export done " : " Export failed ", ret == 0 ? 2 : 1);
+        return ret;
+    } else if (ch == '2') {
+        WINDOW *pwin = create_win(7, 50, " Export Path ");
+        if (!pwin) return -1;
+        mvwprintw(pwin, 2, 2, "Path (default: ./ssh-manager-config.yaml):");
+        wrefresh(pwin);
+
+        char *path = read_line_win(pwin, 3, 2, 40);
+        if (!path) { close_win(pwin); return -1; }
+        if (path[0] == '\0') {
+            free(path);
+            path = strdup("./ssh-manager-config.yaml");
+        }
+        close_win(pwin);
+
+        char cmd[8192];
+        snprintf(cmd, sizeof(cmd), "cp \"%s\" \"%s\" && chmod 600 \"%s\" 2>/dev/null",
+                 g_config_path, path, path);
+        int ret = system(cmd);
+        show_toast(ret == 0 ? " Config exported " : " Export failed ",
+                   ret == 0 ? 2 : 1);
+        free(path);
+        return ret;
     }
+    return 0;
 }
 
 int import_config_interactive(void) {
-    printf("\n--- %s配置导入选项%s ---\n", ANSI_BLUE, ANSI_RESET);
-    printf("1) %s从 Base64 字符串导入%s (从剪贴板)\n", ANSI_YELLOW, ANSI_RESET);
-    printf("2) %s从文件导入%s (从备份文件)\n", ANSI_YELLOW, ANSI_RESET);
-    printf("%s选择导入方式 (1/2): %s", ANSI_GREEN, ANSI_RESET);
-    fflush(stdout);
+    int h = 8, w = 44;
+    WINDOW *win = create_win(h, w, " Import Config ");
+    if (!win) return -1;
 
-    char choice = getchar();
-    while (getchar() != '\n');
+    mvwprintw(win, 2, 2, "1. From Base64 string (clipboard)");
+    mvwprintw(win, 3, 2, "2. From file (backup)");
+    wattron(win, A_DIM);
+    mvwprintw(win, h - 1, 2, "1/2 select  q cancel");
+    wattroff(win, A_DIM);
+    wrefresh(win);
 
-    switch (choice) {
-        case '1': {
-            printf("%s从 Base64 字符串导入%s\n", ANSI_BLUE, ANSI_RESET);
-            printf("%s警告：此操作将覆盖现有配置！%s\n", ANSI_YELLOW, ANSI_RESET);
-            printf("是否继续? (y/n): ");
-            fflush(stdout);
-            char c = getchar();
-            while (getchar() != '\n');
-            if (c != 'y' && c != 'Y') {
-                printf("%s取消导入操作%s\n", ANSI_YELLOW, ANSI_RESET);
-                sleep(1);
-                return 0;
-            }
+    int ch = wgetch(win);
+    close_win(win);
 
-            char b64[65536];
-            printf("粘贴 BASE64 内容: ");
-            fflush(stdout);
-            if (!fgets(b64, sizeof(b64), stdin)) return -1;
-            char *t = str_trim(b64);
-            if (!t[0]) {
-                printf("%s输入为空，导入失败%s\n", ANSI_RED, ANSI_RESET);
-                sleep(1);
-                return -1;
-            }
-
-            config_backup();
-
-            char cmd[131072];
-            snprintf(cmd, sizeof(cmd), "echo '%s' | tr -d '[:space:]' | base64 -d > \"%s\" 2>/dev/null",
-                     t, g_config_path);
-            if (system(cmd) == 0) {
-                config_setup_permissions();
-                printf("%s配置导入成功%s\n", ANSI_GREEN, ANSI_RESET);
-            } else {
-                printf("%s无效的 BASE64 格式%s\n", ANSI_RED, ANSI_RESET);
-                sleep(1);
-                return -1;
-            }
-            sleep(1);
-            config_update_mtime();
+    if (ch == '1') {
+        if (!show_confirm_dialog(" Import Base64 ",
+                                 "This will OVERWRITE current config!")) {
             return 0;
         }
-        case '2': {
-            printf("%s从文件导入%s\n", ANSI_BLUE, ANSI_RESET);
-            printf("%s警告：此操作将覆盖现有配置！%s\n", ANSI_YELLOW, ANSI_RESET);
-            printf("是否继续? (y/n): ");
-            fflush(stdout);
-            char c = getchar();
-            while (getchar() != '\n');
-            if (c != 'y' && c != 'Y') {
-                printf("%s取消导入操作%s\n", ANSI_YELLOW, ANSI_RESET);
-                sleep(1);
-                return 0;
-            }
 
-            char path[4096];
-            printf("请输入配置文件路径: ");
-            fflush(stdout);
-            if (!fgets(path, sizeof(path), stdin)) return -1;
-            char *tp = str_trim(path);
-            if (!tp[0]) return -1;
-            memmove(path, tp, strlen(tp) + 1);
-
-            if (access(path, R_OK) != 0) {
-                printf("%s文件不存在: %s%s\n", ANSI_RED, path, ANSI_RESET);
-                sleep(2);
-                return -1;
-            }
-
-            FILE *tf = fopen(path, "r");
-            int has_nodes = 0;
-            char buf[256];
-            if (tf) {
-                while (fgets(buf, sizeof(buf), tf)) {
-                    char *tb = str_trim(buf);
-                    if (strcmp(tb, "nodes:") == 0) { has_nodes = 1; break; }
-                }
-                fclose(tf);
-            }
-
-            if (!has_nodes) {
-                printf("%s验证失败：文件可能不是有效的SSH管理器配置文件%s\n", ANSI_RED, ANSI_RESET);
-                sleep(2);
-                return -1;
-            }
-
-            config_backup();
-
-            char cmd[8192];
-            snprintf(cmd, sizeof(cmd), "cp \"%s\" \"%s\" && chmod 600 \"%s\" 2>/dev/null",
-                     path, g_config_path, g_config_path);
-            if (system(cmd) == 0) {
-                printf("%s配置从文件导入成功: %s%s\n", ANSI_GREEN, path, ANSI_RESET);
-            } else {
-                printf("%s导入失败%s\n", ANSI_RED, ANSI_RESET);
-            }
-            config_update_mtime();
-            sleep(2);
-            return 0;
-        }
-        default:
-            printf("%s无效选择%s\n", ANSI_RED, ANSI_RESET);
-            sleep(1);
+        WINDOW *pwin = create_win(7, 50, " Paste Base64 ");
+        if (!pwin) return -1;
+        mvwprintw(pwin, 2, 2, "Paste Base64 string:");
+        wrefresh(pwin);
+        char *b64 = read_line_win(pwin, 3, 2, 40);
+        close_win(pwin);
+        if (!b64 || !b64[0]) {
+            show_toast(" Empty input ", 3);
+            free(b64);
             return -1;
+        }
+
+        config_backup();
+        char cmd[131072];
+        snprintf(cmd, sizeof(cmd), "echo '%s' | tr -d '[:space:]' | base64 -d > \"%s\" 2>/dev/null",
+                 b64, g_config_path);
+        free(b64);
+        int ret = system(cmd);
+        if (ret == 0) {
+            config_setup_permissions();
+            config_update_mtime();
+            show_toast(" Config imported ", 2);
+        } else {
+            show_toast(" Invalid Base64 ", 1);
+        }
+        return ret;
+    } else if (ch == '2') {
+        if (!show_confirm_dialog(" Import File ",
+                                 "This will OVERWRITE current config!")) {
+            return 0;
+        }
+
+        WINDOW *pwin = create_win(7, 50, " File Path ");
+        if (!pwin) return -1;
+        mvwprintw(pwin, 2, 2, "Path to config file:");
+        wrefresh(pwin);
+        char *path = read_line_win(pwin, 3, 2, 40);
+        close_win(pwin);
+        if (!path || !path[0]) {
+            show_toast(" No path entered ", 3);
+            free(path);
+            return -1;
+        }
+
+        if (access(path, R_OK) != 0) {
+            show_toast(" File not found ", 1);
+            free(path);
+            return -1;
+        }
+
+        FILE *tf = fopen(path, "r");
+        int has_nodes = 0;
+        if (tf) {
+            char buf[256];
+            while (fgets(buf, sizeof(buf), tf)) {
+                if (strstr(buf, "nodes:")) { has_nodes = 1; break; }
+            }
+            fclose(tf);
+        }
+        if (!has_nodes) {
+            show_toast(" Not a valid config file ", 1);
+            free(path);
+            return -1;
+        }
+
+        config_backup();
+        char cmd[8192];
+        snprintf(cmd, sizeof(cmd), "cp \"%s\" \"%s\" && chmod 600 \"%s\" 2>/dev/null",
+                 path, g_config_path, g_config_path);
+        free(path);
+        int ret = system(cmd);
+        if (ret == 0) {
+            config_update_mtime();
+            show_toast(" Config imported ", 2);
+        } else {
+            show_toast(" Import failed ", 1);
+        }
+        return ret;
     }
+    return 0;
 }
 
 int export_ssh_config(void) {
     node_list_t list;
     if (get_all_nodes(g_config_path, NULL, &list) < 0) {
-        printf("%s无法解析配置%s\n", ANSI_RED, ANSI_RESET);
+        printf("Failed to parse config\n");
         return -1;
     }
 

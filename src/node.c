@@ -1,6 +1,8 @@
 #include "node.h"
 #include "config.h"
+#include "tui.h"
 #include "util.h"
+#include <ncurses.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,20 +11,16 @@
 
 char *sanitize_yaml_value(const char *val) {
     if (!val || val[0] == '\0') return strdup("\"\"");
-
     int need_quote = 0;
     if (strchr(val, ':') || strchr(val, '#') || strchr(val, '"') || strchr(val, '\\'))
         need_quote = 1;
     if (val[0] == ' ' || val[strlen(val)-1] == ' ')
         need_quote = 1;
-
     if (!need_quote) return strdup(val);
-
     size_t len = strlen(val);
     size_t cap = len * 2 + 3;
     char *out = malloc(cap);
     if (!out) return NULL;
-
     size_t j = 0;
     out[j++] = '"';
     for (size_t i = 0; i < len; i++) {
@@ -43,7 +41,6 @@ static int write_node_yaml(FILE *f, const node_t *n) {
     char *s_pass = sanitize_yaml_value(n->pass ? n->pass : "");
     char *s_keypath = sanitize_yaml_value(n->keypath ? n->keypath : "");
     char *s_tags = sanitize_yaml_value(n->tags ? n->tags : "");
-
     fprintf(f, "  - name: %s\n", s_name);
     fprintf(f, "    group: %s\n", s_group);
     fprintf(f, "    host: %s\n", s_host);
@@ -53,7 +50,6 @@ static int write_node_yaml(FILE *f, const node_t *n) {
     fprintf(f, "    pass: %s\n", s_pass);
     fprintf(f, "    keypath: %s\n", s_keypath);
     fprintf(f, "    tags: %s\n", s_tags);
-
     free(s_name); free(s_group); free(s_host);
     free(s_user); free(s_pass); free(s_keypath); free(s_tags);
     return 0;
@@ -107,6 +103,310 @@ static int validate_ssh_key(const char *path) {
 
 char *_deleted_yaml = NULL;
 
+/* ── ncurses form helpers ── */
+
+static char *edit_field_win(WINDOW *win, int y, int x, int max_w,
+                            const char *initial, int hidden) {
+    int len = initial ? strlen(initial) : 0;
+    int cap = max_w + 1;
+    char *buf = calloc(cap, 1);
+    if (!buf) return NULL;
+    if (initial) strncpy(buf, initial, max_w);
+
+    int pos = len;
+    curs_set(1);
+    while (1) {
+        wmove(win, y, x + pos);
+        wrefresh(win);
+        int c = wgetch(win);
+        if (c == '\n' || c == KEY_ENTER) {
+            curs_set(0);
+            return buf;
+        }
+        if ((c == KEY_BACKSPACE || c == 127 || c == '\b') && pos > 0) {
+            pos--;
+            buf[pos] = '\0';
+            mvwprintw(win, y, x, "%-*s", max_w, "");
+            if (hidden)
+                mvwprintw(win, y, x, "%-*s", pos, "");
+            else
+                mvwprintw(win, y, x, "%s", buf);
+        } else if (c >= 32 && c <= 126 && pos < max_w) {
+            buf[pos++] = c;
+            buf[pos] = '\0';
+            if (hidden) {
+                mvwprintw(win, y, x, "%-*s", pos, "");
+                for (int i = 0; i < pos; i++)
+                    mvwaddch(win, y, x + i, '*');
+            } else {
+                mvwprintw(win, y, x, "%s", buf);
+            }
+        } else if (c == 27 || c == ERR) {
+            curs_set(0);
+            free(buf);
+            return NULL;
+        }
+    }
+}
+
+static void draw_form(WINDOW *win, const node_t *n, int edit_field) {
+    int is_key = (strcmp(n->type, "key") == 0);
+    const char *pass_display = (n->pass && n->pass[0]) ? "****" : "(not set)";
+    const char *aclabel = is_key ? "Key" : "Pass";
+    int y = 2;
+
+    for (int i = 1; i <= 9; i++) {
+        int is_editing = (i == edit_field);
+        int row = y + i - 1;
+
+        if (is_editing) {
+            wattron(win, COLOR_PAIR(7) | A_BOLD);
+            mvwprintw(win, row, 2, "[%d]", i);
+            wattroff(win, COLOR_PAIR(7) | A_BOLD);
+        } else {
+            mvwprintw(win, row, 2, "[%d]", i);
+        }
+
+        switch (i) {
+            case 1: mvwprintw(win, row, 7, "Name   %s", n->name && n->name[0] ? n->name : "(not set)"); break;
+            case 2: mvwprintw(win, row, 7, "Group  %s", n->group ? n->group : ""); break;
+            case 3: mvwprintw(win, row, 7, "Host   %s", n->host && n->host[0] ? n->host : "(required)"); break;
+            case 4: mvwprintw(win, row, 7, "Port   %d", n->port); break;
+            case 5: mvwprintw(win, row, 7, "User   %s", n->user ? n->user : "root"); break;
+            case 6:
+                mvwprintw(win, row, 7, "Auth   ");
+                if (is_key) {
+                    wattron(win, A_DIM);
+                    wprintw(win, "[Pass]");
+                    wattroff(win, A_DIM);
+                    wattron(win, A_BOLD);
+                    wprintw(win, " [Key]");
+                    wattroff(win, A_BOLD);
+                } else {
+                    wattron(win, A_BOLD);
+                    wprintw(win, "[Pass]");
+                    wattroff(win, A_BOLD);
+                    wattron(win, A_DIM);
+                    wprintw(win, " [Key]");
+                    wattroff(win, A_DIM);
+                }
+                break;
+            case 7:
+                if (is_key)
+                    mvwprintw(win, row, 7, "Keypath %s", n->keypath && n->keypath[0] ? n->keypath : "(required)");
+                else
+                    mvwprintw(win, row, 7, "Passwd  %s", pass_display);
+                break;
+            case 8:
+                if (is_key)
+                    mvwprintw(win, row, 7, "Phrase  %s", pass_display);
+                else
+                    mvwprintw(win, row, 7, "Tags    %s", n->tags && n->tags[0] ? n->tags : "(none)");
+                break;
+            case 9:
+                if (is_key)
+                    mvwprintw(win, row, 7, "Tags    %s", n->tags && n->tags[0] ? n->tags : "(none)");
+                break;
+        }
+    }
+
+    int h, ww;
+    getmaxyx(win, h, ww);
+    mvwprintw(win, h - 2, 2, "Enter=save  1-9=edit  q=back");
+
+    if (edit_field > 0) {
+        mvwprintw(win, h - 2, 2, "Editing field %d ... Enter=done  ESC=cancel", edit_field);
+    }
+}
+
+static int form_interactive(node_t *n, const char *title) {
+    int h = 16, w = 48;
+    int edit_field = 0;
+
+    while (1) {
+        WINDOW *win = create_win(h, w, title);
+        if (!win) return -1;
+        draw_form(win, n, edit_field);
+
+        int save_ready = (n->name && n->name[0] && n->host && n->host[0]);
+
+        if (edit_field > 0) {
+            mvwprintw(win, h - 2, 2, "Editing field %d ... Enter=done  ESC=cancel", edit_field);
+        } else if (save_ready) {
+            int is_key = (strcmp(n->type, "key") == 0);
+            if (!is_key || (n->keypath && n->keypath[0]))
+                mvwprintw(win, h - 2, 2, "Enter=save  1-9=edit  q=back");
+            else
+                mvwprintw(win, h - 2, 2, "Fill required fields  1-9=edit  q=back");
+        } else {
+            mvwprintw(win, h - 2, 2, "Fill required fields  1-9=edit  q=back");
+        }
+
+        wrefresh(win);
+
+        int ch = wgetch(win);
+
+        if (edit_field == 0) {
+            if (ch == '\n' || ch == KEY_ENTER) {
+                int is_key = (strcmp(n->type, "key") == 0);
+                if (save_ready && (!is_key || (n->keypath && n->keypath[0]))) {
+                    close_win(win);
+                    return 0;
+                }
+                close_win(win);
+                continue;
+            }
+            if (ch == 'q' || ch == 'Q' || ch == 27 || ch == ERR) {
+                close_win(win);
+                return -1;
+            }
+            if (ch >= '1' && ch <= '9') {
+                int max_field = (strcmp(n->type, "key") == 0) ? 9 : 8;
+                if (ch - '0' <= max_field) {
+                    edit_field = ch - '0';
+                    close_win(win);
+                    continue;
+                }
+            }
+            /* left/right for auth toggle */
+            if ((ch == KEY_LEFT || ch == KEY_RIGHT) && (ch == KEY_LEFT || ch == 260 || ch == 261)) {
+                int is_key = (strcmp(n->type, "key") == 0);
+                free(n->type);
+                n->type = strdup(is_key ? "pass" : "key");
+                close_win(win);
+                continue;
+            }
+            close_win(win);
+        } else {
+            /* In edit mode for a specific field */
+            int is_key = (strcmp(n->type, "key") == 0);
+            int input_x = 16;
+            int max_w = w - input_x - 4;
+
+            switch (edit_field) {
+                case 1: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    char *result = edit_field_win(win, 2, input_x, max_w, n->name, 0);
+                    if (result) { free(n->name); n->name = result; }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 2: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    char *result = edit_field_win(win, 3, input_x, max_w, n->group, 0);
+                    if (result) { free(n->group); n->group = result[0] ? result : strdup("Default"); if (result[0]) free(result); }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 3: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    wattron(win, COLOR_PAIR(1));
+                    mvwprintw(win, h - 2, 2, "Hostname (no spaces/shell chars)");
+                    wattroff(win, COLOR_PAIR(1));
+                    wrefresh(win);
+                    char *result = edit_field_win(win, 4, input_x, max_w, n->host, 0);
+                    if (result) {
+                        if (validate_host(result)) {
+                            free(n->host); n->host = result;
+                        } else {
+                            show_toast(" Invalid hostname ", 1);
+                            free(result);
+                        }
+                    }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 4: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    char port_str[16];
+                    snprintf(port_str, sizeof(port_str), "%d", n->port);
+                    char *result = edit_field_win(win, 5, input_x, 8, port_str, 0);
+                    if (result) {
+                        if (validate_port(result))
+                            n->port = atoi(result);
+                        else
+                            show_toast(" Invalid port (1-65535) ", 1);
+                        free(result);
+                    }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 5: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    char *result = edit_field_win(win, 6, input_x, max_w, n->user, 0);
+                    if (result) {
+                        if (validate_host(result))
+                            { free(n->user); n->user = result; }
+                        else
+                            { show_toast(" Invalid username ", 1); free(result); }
+                    }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 6: {
+                    /* Toggle auth type */
+                    free(n->type);
+                    n->type = strdup(is_key ? "pass" : "key");
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 7: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    if (is_key) {
+                        wattron(win, COLOR_PAIR(1));
+                        mvwprintw(win, h - 2, 2, "Path to SSH private key file     ");
+                        wattroff(win, COLOR_PAIR(1));
+                        wrefresh(win);
+                        char *result = edit_field_win(win, 8, input_x, max_w, n->keypath, 0);
+                        if (result) {
+                            if (validate_ssh_key(result))
+                                { free(n->keypath); n->keypath = result; }
+                            else
+                                { show_toast(" Invalid SSH key ", 1); free(result); }
+                        }
+                    } else {
+                        char *result = edit_field_win(win, 8, input_x, max_w, n->pass, 1);
+                        if (result) { free(n->pass); n->pass = result; }
+                    }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 8: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    if (is_key) {
+                        char *result = edit_field_win(win, 9, input_x, max_w, n->pass, 1);
+                        if (result) { free(n->pass); n->pass = result; }
+                    } else {
+                        char *result = edit_field_win(win, 9, input_x, max_w, n->tags, 0);
+                        if (result) { free(n->tags); n->tags = result; }
+                    }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+                case 9: {
+                    if (ch == 27 || ch == ERR) { edit_field = 0; close_win(win); continue; }
+                    if (is_key) {
+                        char *result = edit_field_win(win, 10, input_x, max_w, n->tags, 0);
+                        if (result) { free(n->tags); n->tags = result; }
+                    }
+                    edit_field = 0;
+                    close_win(win);
+                    continue;
+                }
+            }
+            close_win(win);
+        }
+    }
+}
+
 int add_node_interactive(void) {
     node_t n;
     node_init(&n);
@@ -117,200 +417,10 @@ int add_node_interactive(void) {
     n.user = strdup("root");
     n.type = strdup("pass");
 
-    char input[4096];
-
-    while (1) {
-        const char *aclabel = (strcmp(n.type, "key") == 0) ? "密钥" : "密码";
-        const char *pass_display = (n.pass && n.pass[0]) ? "****" : "(未设置)";
-        int is_key = (strcmp(n.type, "key") == 0);
-
-        printf("\033[H\033[J");
-        printf("\n%s[添加新节点]%s\n\n", ANSI_BLUE, ANSI_RESET);
-        printf("  %s[1]%s 名称: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-               n.name && n.name[0] ? n.name : "(未设置)", ANSI_RESET);
-        printf("  %s[2]%s 分组: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, n.group, ANSI_RESET);
-        printf("  %s[3]%s 主机: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-               n.host && n.host[0] ? n.host : "(必填)", ANSI_RESET);
-        printf("  %s[4]%s 端口: %s%d%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, n.port, ANSI_RESET);
-        printf("  %s[5]%s 用户: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, n.user, ANSI_RESET);
-        printf("  %s[6]%s 认证: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, aclabel, ANSI_RESET);
-
-        if (is_key) {
-            printf("  %s[7]%s 私钥: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-                   n.keypath && n.keypath[0] ? n.keypath : "(必填)", ANSI_RESET);
-            printf("  %s[8]%s 短语: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, pass_display, ANSI_RESET);
-            printf("  %s[9]%s 标签: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-                   n.tags && n.tags[0] ? n.tags : "(无)", ANSI_RESET);
-        } else {
-            printf("  %s[7]%s 密码: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, pass_display, ANSI_RESET);
-            printf("  %s[8]%s 标签: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-                   n.tags && n.tags[0] ? n.tags : "(无)", ANSI_RESET);
-        }
-
-        int tag_max = is_key ? 9 : 8;
-        printf("\n");
-        if (n.name && n.name[0] && n.host && n.host[0] && (!is_key || (n.keypath && n.keypath[0]))) {
-            printf("  %sEnter%s=保存  %s1-%d%s=编辑  %sq%s=取消\n",
-                   ANSI_GREEN, ANSI_RESET, ANSI_BLUE, tag_max, ANSI_RESET, ANSI_RED, ANSI_RESET);
-        } else {
-            printf("  %s1-%d%s=编辑  %sq%s=取消\n",
-                   ANSI_BLUE, tag_max, ANSI_RESET, ANSI_RED, ANSI_RESET);
-        }
-
-        int ch = getchar();
-
-        /* consume newline from line-buffered cooked input */
-        if (ch != '\n' && ch != '\033' && ch != EOF) {
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF);
-        }
-
-        if (ch == '\n') {
-            if (n.name && n.name[0] && n.host && n.host[0]) {
-                if (is_key && (!n.keypath || !n.keypath[0])) {
-                    printf("\n%s私钥路径不能为空%s\n", ANSI_RED, ANSI_RESET);
-                    sleep(1);
-                    continue;
-                }
-                break;
-            }
-            printf("\n%s名称和主机为必填项%s\n", ANSI_RED, ANSI_RESET);
-            sleep(1);
-            continue;
-        }
-
-        if (ch == 'q' || ch == 'Q') {
-            printf("\n%s取消添加%s\n", ANSI_YELLOW, ANSI_RESET);
-            sleep(1);
-            node_free(&n);
-            return -1;
-        }
-
-        if (ch == '\033') {
-            getchar(); getchar();
-        }
-
-        switch (ch) {
-            case '1': {
-                printf("名称: "); fflush(stdout);
-                if (fgets(input, sizeof(input), stdin)) {
-                    char *t = str_trim(input);
-                    if (t[0]) { free(n.name); n.name = strdup(t); }
-                }
-                break;
-            }
-            case '2': {
-                printf("分组 (Default): "); fflush(stdout);
-                if (fgets(input, sizeof(input), stdin)) {
-                    char *t = str_trim(input);
-                    if (t[0]) { free(n.group); n.group = strdup(t); }
-                }
-                break;
-            }
-            case '3': {
-                while (1) {
-                    printf("主机: "); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) { printf("%s主机不能为空%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    if (!validate_host(t)) { printf("%s主机包含非法字符%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    free(n.host); n.host = strdup(t);
-                    break;
-                }
-                break;
-            }
-            case '4': {
-                while (1) {
-                    char port_str[32];
-                    snprintf(port_str, sizeof(port_str), "%d", n.port);
-                    printf("端口 (%s): ", port_str); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (!validate_port(t)) { printf("%s端口无效 (1-65535)%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    n.port = atoi(t);
-                    break;
-                }
-                break;
-            }
-            case '5': {
-                while (1) {
-                    printf("用户 (%s): ", n.user); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (!validate_host(t)) { printf("%s用户名包含非法字符%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    free(n.user); n.user = strdup(t);
-                    break;
-                }
-                break;
-            }
-            case '6': {
-                while (1) {
-                    printf("认证 (1:密码 2:密钥) [%s]: ", n.type); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (strcmp(t, "1") == 0) { free(n.type); n.type = strdup("pass"); break; }
-                    if (strcmp(t, "2") == 0) { free(n.type); n.type = strdup("key"); break; }
-                    printf("%s请输入 1 或 2%s\n", ANSI_RED, ANSI_RESET);
-                }
-                break;
-            }
-            case '7': {
-                if (is_key) {
-                    while (1) {
-                        printf("私钥路径: "); fflush(stdout);
-                        if (!fgets(input, sizeof(input), stdin)) break;
-                        char *t = str_trim(input);
-                        if (!t[0]) break;
-                        if (validate_ssh_key(t)) { free(n.keypath); n.keypath = strdup(t); break; }
-                        printf("%s不是有效的SSH私钥或文件不存在%s\n", ANSI_RED, ANSI_RESET);
-                    }
-                } else {
-                    printf("密码: "); fflush(stdout);
-                    term_echo_off();
-                    if (fgets(input, sizeof(input), stdin)) {
-                        term_echo_on();
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.pass); n.pass = strdup(t); }
-                    } else {
-                        term_echo_on();
-                    }
-                }
-                break;
-            }
-            case '8': {
-                if (is_key) {
-                    printf("短语: "); fflush(stdout);
-                    term_echo_off();
-                    if (fgets(input, sizeof(input), stdin)) {
-                        term_echo_on();
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.pass); n.pass = strdup(t); }
-                    } else {
-                        term_echo_on();
-                    }
-                } else {
-                    printf("标签(逗号分隔): "); fflush(stdout);
-                    if (fgets(input, sizeof(input), stdin)) {
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.tags); n.tags = strdup(t); }
-                    }
-                }
-                break;
-            }
-            case '9': {
-                if (is_key) {
-                    printf("标签(逗号分隔): "); fflush(stdout);
-                    if (fgets(input, sizeof(input), stdin)) {
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.tags); n.tags = strdup(t); }
-                    }
-                }
-                break;
-            }
-        }
+    int ret = form_interactive(&n, " Add Node ");
+    if (ret != 0) {
+        node_free(&n);
+        return -1;
     }
 
     config_backup();
@@ -325,7 +435,7 @@ int add_node_interactive(void) {
 
     FILE *f = fopen(g_config_path, "a");
     if (!f) {
-        printf("%s写入配置文件失败%s\n", ANSI_RED, ANSI_RESET);
+        show_toast(" Write config failed ", 1);
         node_free(&n);
         free(s_name); free(s_group); free(s_host);
         free(s_user); free(s_pass); free(s_keypath); free(s_tags);
@@ -345,9 +455,7 @@ int add_node_interactive(void) {
     config_update_mtime();
     config_setup_permissions();
 
-    printf("%s节点 [%s] 已成功添加。 (%s:%d %s@%s)%s\n",
-           ANSI_GREEN, n.name, n.host, n.port, n.user, n.type, ANSI_RESET);
-    sleep(1);
+    show_toast(" Node added ", 2);
 
     node_free(&n);
     free(s_name); free(s_group); free(s_host);
@@ -359,217 +467,24 @@ int edit_node_interactive(int id) {
     node_t n;
     node_init(&n);
     if (read_node_info(g_config_path, id, &n) != 0) {
-        printf("%s未找到节点 ID: %d%s\n", ANSI_RED, id, ANSI_RESET);
-        sleep(1);
+        show_toast(" Node not found ", 1);
         return -1;
     }
 
-    char input[4096];
+    char title[64];
+    snprintf(title, sizeof(title), " Edit: %s ", n.name ? n.name : "");
 
-    while (1) {
-        const char *aclabel = (strcmp(n.type, "key") == 0) ? "密钥" : "密码";
-        const char *pass_display = (n.pass && n.pass[0]) ? "****" : "(未设置)";
-        int is_key = (strcmp(n.type, "key") == 0);
-
-        printf("\033[H\033[J");
-        printf("\n%s[编辑节点: %s%s%s]%s\n\n", ANSI_BLUE, ANSI_YELLOW,
-               n.name ? n.name : "(unnamed)", ANSI_BLUE, ANSI_RESET);
-        printf("  %s[1]%s 名称: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-               n.name ? n.name : "", ANSI_RESET);
-        printf("  %s[2]%s 分组: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, n.group, ANSI_RESET);
-        printf("  %s[3]%s 主机: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-               n.host ? n.host : "", ANSI_RESET);
-        printf("  %s[4]%s 端口: %s%d%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, n.port, ANSI_RESET);
-        printf("  %s[5]%s 用户: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-               n.user ? n.user : "", ANSI_RESET);
-        printf("  %s[6]%s 认证: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, aclabel, ANSI_RESET);
-
-        int tag_max;
-        if (is_key) {
-            printf("  %s[7]%s 私钥: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-                   n.keypath && n.keypath[0] ? n.keypath : "(必填)", ANSI_RESET);
-            printf("  %s[8]%s 短语: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, pass_display, ANSI_RESET);
-            printf("  %s[9]%s 标签: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-                   n.tags && n.tags[0] ? n.tags : "(无)", ANSI_RESET);
-            tag_max = 9;
-        } else {
-            printf("  %s[7]%s 密码: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW, pass_display, ANSI_RESET);
-            printf("  %s[8]%s 标签: %s%s%s\n", ANSI_GREEN, ANSI_RESET, ANSI_YELLOW,
-                   n.tags && n.tags[0] ? n.tags : "(无)", ANSI_RESET);
-            tag_max = 8;
-        }
-
-        printf("\n");
-        if (n.name && n.name[0] && n.host && n.host[0] && (!is_key || (n.keypath && n.keypath[0]))) {
-            printf("  %sEnter%s=保存  %s1-%d%s=编辑  %sq%s=取消\n",
-                   ANSI_GREEN, ANSI_RESET, ANSI_BLUE, tag_max, ANSI_RESET,
-                   ANSI_RED, ANSI_RESET);
-        } else {
-            printf("  必填项未完成  %s1-%d%s=编辑  %sq%s=取消\n",
-                   ANSI_BLUE, tag_max, ANSI_RESET, ANSI_RED, ANSI_RESET);
-        }
-
-        int ch = getchar();
-
-        /* consume newline from line-buffered cooked input */
-        if (ch != '\n' && ch != '\033' && ch != EOF) {
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF);
-        }
-
-        if (ch == '\n') {
-            if (n.name && n.name[0] && n.host && n.host[0]) {
-                if (is_key && (!n.keypath || !n.keypath[0])) {
-                    printf("\n%s私钥路径不能为空%s\n", ANSI_RED, ANSI_RESET);
-                    sleep(1);
-                    continue;
-                }
-                break;
-            }
-            printf("\n%s名称和主机为必填项%s\n", ANSI_RED, ANSI_RESET);
-            sleep(1);
-            continue;
-        }
-        if (ch == 'q' || ch == 'Q') {
-            printf("\n%s取消编辑%s\n", ANSI_YELLOW, ANSI_RESET);
-            sleep(1);
-            node_free(&n);
-            return -1;
-        }
-
-        if (ch == '\033') {
-            getchar(); getchar();
-        }
-
-        switch (ch) {
-            case '1': {
-                printf("名称: "); fflush(stdout);
-                if (fgets(input, sizeof(input), stdin)) {
-                    char *t = str_trim(input);
-                    if (t[0]) { free(n.name); n.name = strdup(t); }
-                }
-                break;
-            }
-            case '2': {
-                printf("分组: "); fflush(stdout);
-                if (fgets(input, sizeof(input), stdin)) {
-                    char *t = str_trim(input);
-                    if (t[0]) { free(n.group); n.group = strdup(t); }
-                    else { free(n.group); n.group = strdup("Default"); }
-                }
-                break;
-            }
-            case '3': {
-                while (1) {
-                    printf("主机: "); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (!validate_host(t)) { printf("%s主机包含非法字符%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    free(n.host); n.host = strdup(t);
-                    break;
-                }
-                break;
-            }
-            case '4': {
-                while (1) {
-                    char port_str[32];
-                    snprintf(port_str, sizeof(port_str), "%d", n.port);
-                    printf("端口 (%s): ", port_str); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (!validate_port(t)) { printf("%s端口无效 (1-65535)%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    n.port = atoi(t);
-                    break;
-                }
-                break;
-            }
-            case '5': {
-                while (1) {
-                    printf("用户 (%s): ", n.user ? n.user : "root"); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (!validate_host(t)) { printf("%s用户名包含非法字符%s\n", ANSI_RED, ANSI_RESET); continue; }
-                    free(n.user); n.user = strdup(t);
-                    break;
-                }
-                break;
-            }
-            case '6': {
-                while (1) {
-                    printf("认证 (1:密码 2:密钥) [%s]: ", n.type); fflush(stdout);
-                    if (!fgets(input, sizeof(input), stdin)) break;
-                    char *t = str_trim(input);
-                    if (!t[0]) break;
-                    if (strcmp(t, "1") == 0) { free(n.type); n.type = strdup("pass"); break; }
-                    if (strcmp(t, "2") == 0) { free(n.type); n.type = strdup("key"); break; }
-                    printf("%s请输入 1 或 2%s\n", ANSI_RED, ANSI_RESET);
-                }
-                break;
-            }
-            case '7': {
-                if (is_key) {
-                    while (1) {
-                        printf("私钥路径: "); fflush(stdout);
-                        if (!fgets(input, sizeof(input), stdin)) break;
-                        char *t = str_trim(input);
-                        if (!t[0]) break;
-                        if (validate_ssh_key(t)) { free(n.keypath); n.keypath = strdup(t); break; }
-                        printf("%s不是有效的SSH私钥或文件不存在%s\n", ANSI_RED, ANSI_RESET);
-                    }
-                } else {
-                    printf("密码: "); fflush(stdout);
-                    term_echo_off();
-                    if (fgets(input, sizeof(input), stdin)) {
-                        term_echo_on();
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.pass); n.pass = strdup(t); }
-                    } else {
-                        term_echo_on();
-                    }
-                }
-                break;
-            }
-            case '8': {
-                if (is_key) {
-                    printf("短语: "); fflush(stdout);
-                    term_echo_off();
-                    if (fgets(input, sizeof(input), stdin)) {
-                        term_echo_on();
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.pass); n.pass = strdup(t); }
-                    } else {
-                        term_echo_on();
-                    }
-                } else {
-                    printf("标签(逗号分隔): "); fflush(stdout);
-                    if (fgets(input, sizeof(input), stdin)) {
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.tags); n.tags = strdup(t); }
-                    }
-                }
-                break;
-            }
-            case '9': {
-                if (is_key) {
-                    printf("标签(逗号分隔): "); fflush(stdout);
-                    if (fgets(input, sizeof(input), stdin)) {
-                        char *t = str_trim(input);
-                        if (t[0]) { free(n.tags); n.tags = strdup(t); }
-                    }
-                }
-                break;
-            }
-        }
+    int ret = form_interactive(&n, title);
+    if (ret != 0) {
+        node_free(&n);
+        return -1;
     }
 
     config_backup();
 
     char *content = read_file(g_config_path);
     if (!content) {
-        printf("%s读取配置文件失败%s\n", ANSI_RED, ANSI_RESET);
+        show_toast(" Read config failed ", 1);
         node_free(&n);
         return -1;
     }
@@ -578,7 +493,7 @@ int edit_node_interactive(int id) {
     int tmp_fd = mkstemp(tmp_path);
     if (tmp_fd == -1) {
         free(content); free(tmp_path);
-        printf("%s创建临时文件失败%s\n", ANSI_RED, ANSI_RESET);
+        show_toast(" Create temp file failed ", 1);
         node_free(&n);
         return -1;
     }
@@ -617,7 +532,7 @@ int edit_node_interactive(int id) {
     free(content);
 
     if (rename(tmp_path, g_config_path) != 0) {
-        printf("%s保存失败%s\n", ANSI_RED, ANSI_RESET);
+        show_toast(" Save failed ", 1);
         unlink(tmp_path);
         free(tmp_path);
         node_free(&n);
@@ -627,8 +542,8 @@ int edit_node_interactive(int id) {
 
     config_update_mtime();
     config_setup_permissions();
-    printf("%s节点已更新: %s%s\n", ANSI_GREEN, n.name, ANSI_RESET);
-    sleep(1);
+
+    show_toast(" Node updated ", 2);
 
     node_free(&n);
     return 0;
@@ -638,19 +553,13 @@ int delete_node_by_id(int id) {
     node_t n;
     node_init(&n);
     if (read_node_info(g_config_path, id, &n) != 0) {
-        printf("%s无效 ID: %d (未找到节点)%s\n", ANSI_RED, id, ANSI_RESET);
-        sleep(1);
+        show_toast(" Node not found ", 1);
         return -1;
     }
 
-    printf("确认永久删除节点 [%s] ? (y/n): ", n.name ? n.name : "");
-    fflush(stdout);
-    char c = getchar();
-    while (getchar() != '\n');
-
-    if (c != 'y' && c != 'Y') {
-        printf("%s取消删除操作%s\n", ANSI_YELLOW, ANSI_RESET);
-        sleep(1);
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Delete [%s] permanently?", n.name ? n.name : "?");
+    if (!show_confirm_dialog(" Delete Node ", msg)) {
         node_free(&n);
         return 0;
     }
@@ -684,7 +593,7 @@ int delete_node_by_id(int id) {
 
     char *content = read_file(g_config_path);
     if (!content) {
-        printf("%s读取配置文件失败%s\n", ANSI_RED, ANSI_RESET);
+        show_toast(" Read config failed ", 1);
         node_free(&n);
         return -1;
     }
@@ -734,7 +643,7 @@ int delete_node_by_id(int id) {
     free(content);
 
     if (rename(tmp_path, g_config_path) != 0) {
-        printf("%s写入配置文件失败%s\n", ANSI_RED, ANSI_RESET);
+        show_toast(" Write config failed ", 1);
         unlink(tmp_path);
         free(tmp_path);
         node_free(&n);
@@ -744,44 +653,35 @@ int delete_node_by_id(int id) {
 
     config_update_mtime();
     config_setup_permissions();
-    printf("%s节点 [%s] 已成功删除。%s\n", ANSI_GREEN,
-           n.name ? n.name : "", ANSI_RESET);
-    sleep(1);
+
+    show_toast(" Node deleted ", 2);
+
     node_free(&n);
     return 0;
 }
 
 int undo_delete(void) {
-    if (!_deleted_yaml) {
-        printf("\n%s没有可恢复的节点%s\n", ANSI_YELLOW, ANSI_RESET);
-        sleep(1);
-        return -1;
-    }
+    if (!_deleted_yaml) return -1;
 
     config_backup();
 
     FILE *f = fopen(g_config_path, "a");
-    if (!f) {
-        printf("%s恢复失败%s\n", ANSI_RED, ANSI_RESET);
-        return -1;
-    }
+    if (!f) return -1;
     fprintf(f, "%s", _deleted_yaml);
     fclose(f);
 
     config_update_mtime();
     config_setup_permissions();
 
-    printf("%s节点已恢复%s\n", ANSI_GREEN, ANSI_RESET);
     free(_deleted_yaml);
     _deleted_yaml = NULL;
-    sleep(1);
     return 0;
 }
 
 int import_from_ssh_config(const char *ssh_config_path) {
     FILE *f = fopen(ssh_config_path, "r");
     if (!f) {
-        printf("%sSSH config not found: %s%s\n", ANSI_RED, ssh_config_path, ANSI_RESET);
+        fprintf(stderr, "SSH config not found: %s\n", ssh_config_path);
         return -1;
     }
 
@@ -806,7 +706,6 @@ int import_from_ssh_config(const char *ssh_config_path) {
                     char *sn = sanitize_yaml_value(current_name);
                     char *sh = sanitize_yaml_value(current_host);
                     char *su = sanitize_yaml_value(current_user);
-
                     fprintf(cf, "  - name: %s\n", sn);
                     fprintf(cf, "    group: Imported\n");
                     fprintf(cf, "    host: %s\n", sh);
@@ -877,9 +776,9 @@ int import_from_ssh_config(const char *ssh_config_path) {
     config_setup_permissions();
 
     if (count > 0)
-        printf("%s从 %s 导入了 %d 个主机%s\n", ANSI_GREEN, ssh_config_path, count, ANSI_RESET);
+        printf("Imported %d hosts from %s\n", count, ssh_config_path);
     else
-        printf("%s未找到可导入的主机条目%s\n", ANSI_YELLOW, ANSI_RESET);
+        printf("No importable hosts found\n");
 
     return count;
 }
