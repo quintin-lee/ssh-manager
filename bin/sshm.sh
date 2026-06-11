@@ -98,7 +98,6 @@ _THEME_IDX=0
 
 _apply_theme() {
     local name="$1"
-    local codes
     IFS=' ' read -r r g y b c _ <<<"${_THEMES[$name]}"
     RED=$'\033['"${r}"'m'
     GREEN=$'\033['"${g}"'m'
