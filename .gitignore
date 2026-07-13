@@ -20,3 +20,5 @@ Thumbs.db
 *.bak
 *.backup
 config.yaml
+.agent/
+.codegraph/
