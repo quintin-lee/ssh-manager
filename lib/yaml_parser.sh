@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2034  # NODE_* variables are intentionally exported for callers
+
+# Trim leading and trailing whitespace from a string
+_trim() {
+    local var="$1"
+    # Remove leading whitespace
+    var="${var#"${var%%[![:space:]]*}"}"
+    # Remove trailing whitespace
+    var="${var%"${var##*[![:space:]]}"}"
+    echo "$var"
+}
+
 read_node_info() {
     local conf="$1"
     local id=$2
