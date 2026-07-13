@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Author: quintin
 # Date: 2026-01-10
-# Version: 0.2 (Final Stable)
+# Version: read from VERSION file at runtime
 
 set -o pipefail
 
@@ -140,7 +140,10 @@ _choose_theme() {
 _SSHM_CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || cat "/usr/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")
+VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || cat "/usr/share/ssh-manager/VERSION" 2>/dev/null || true)
+if [[ -z "$VERSION" ]]; then
+    _die "Error: VERSION file not found. Checked: ${SCRIPT_DIR}/../VERSION, /usr/local/share/ssh-manager/VERSION, /usr/share/ssh-manager/VERSION"
+fi
 
 for arg in "$@"; do
     case "$arg" in
@@ -164,12 +167,19 @@ elif [[ -f "/usr/share/ssh-manager/yaml_parser.sh" ]]; then
 elif [[ -f "/usr/local/share/ssh-manager/yaml_parser.sh" ]]; then
     source "/usr/local/share/ssh-manager/yaml_parser.sh"
 else
-    _die "Error: yaml_parser.sh not found. Please reinstall ssh-manager.
-Checked: ${SCRIPT_DIR}/../lib/yaml_parser.sh
-         /usr/local/lib/yaml_parser.sh
-         /usr/share/ssh-manager/yaml_parser.sh
-         /usr/local/share/ssh-manager/yaml_parser.sh
-Binary: ${BASH_SOURCE[0]}"
+    _die "Error: yaml_parser.sh not found. Please reinstall ssh-manager."
+fi
+
+if [[ -f "${SCRIPT_DIR}/../lib/yaml_ops.sh" ]]; then
+    source "${SCRIPT_DIR}/../lib/yaml_ops.sh"
+elif [[ -f "/usr/local/lib/yaml_ops.sh" ]]; then
+    source "/usr/local/lib/yaml_ops.sh"
+elif [[ -f "/usr/share/ssh-manager/yaml_ops.sh" ]]; then
+    source "/usr/share/ssh-manager/yaml_ops.sh"
+elif [[ -f "/usr/local/share/ssh-manager/yaml_ops.sh" ]]; then
+    source "/usr/local/share/ssh-manager/yaml_ops.sh"
+else
+    _die "Error: yaml_ops.sh not found. Please reinstall ssh-manager."
 fi
 
 # --- 1. 环境初始化 ---
@@ -588,36 +598,16 @@ _edit_node() {
         8) if [[ "$t" == "key" ]]; then
                 read -s -r -p "短语: " v; echo ""; [[ -n "$v" ]] && ps="$v"
             else
-                read -r -p "标签(逗号分隔): " v; tags=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                read -r -p "标签(逗号分隔): " v; tags=$(echo "$v" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             fi ;;
-        9) read -r -p "标签(逗号分隔): " v; tags=$(echo "$v"|sed 's/^[[:space:]]*//;s/[[:space:]]*$//') ;;
+        9) read -r -p "标签(逗号分隔): " v; tags=$(echo "$v" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//') ;;
         esac
     done
 
     _backup_config
     local tmp_file
-    tmp_file=$(mktemp) || return 1
-    local current_id=0 skip=0
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-            current_id=$((current_id + 1))
-            [[ $current_id -eq $id ]] && skip=1 || skip=0
-        fi
-        [[ $skip -eq 1 ]] && continue
-        [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* && $skip -eq 1 ]] && skip=0
-        echo "$line" >> "$tmp_file"
-    done <"$_SSHM_CONF"
-    cat >>"$tmp_file" <<EOF
-  - name: $(sanitize_yaml_value "$n")
-    group: $(sanitize_yaml_value "$g")
-    host: $(sanitize_yaml_value "$h")
-    port: $p
-    user: $(sanitize_yaml_value "$u")
-    type: $t
-    pass: $(sanitize_yaml_value "$ps")
-    keypath: $(sanitize_yaml_value "$kp")
-    tags: $(sanitize_yaml_value "$tags")
-EOF
+    tmp_file=$(_yaml_delete_node "$_SSHM_CONF" "$id") || return 1
+    _yaml_append_node "$tmp_file" "$n" "$g" "$h" "$p" "$u" "$t" "$ps" "$kp" "$tags"
     if mv "$tmp_file" "$_SSHM_CONF"; then
         _echo "${GREEN}节点已更新: $n${RESET}"; sleep 1
     else
@@ -844,44 +834,15 @@ perform_delete() {
     keypath: $(sanitize_yaml_value "$NODE_KEYPATH")
     tags: ${NODE_TAGS:-}"
 
-    local tmp_file
-    tmp_file=$(mktemp) || { _echo "${RED}错误：无法创建临时文件${RESET}"; return 1; }
-    local current_id=0
-    local skip=0
-
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-            current_id=$((current_id + 1))
-            if [[ $current_id -eq $id ]]; then
-                skip=1
-                continue
-            else
-                skip=0
-            fi
-        fi
-
-        if [[ $skip -eq 1 ]]; then
-            if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
-                skip=0
-                echo "$line" >>"$tmp_file"
-            fi
-            continue
-        fi
-
-        echo "$line" >>"$tmp_file"
-    done <"$_SSHM_CONF"
-
-    sed_i '/^[[:space:]]*$/N;/^[[:space:]]*\n[[:space:]]*$/D' "$tmp_file"
-    if [[ $(head -n1 "$tmp_file" | tr -d '[:space:]') != "nodes:" ]]; then
-        sed_i '1i nodes:' "$tmp_file"
-    fi
     _backup_config
+    local tmp_file
+    tmp_file=$(_yaml_delete_node "$_SSHM_CONF" "$id") || return 1
     if mv "$tmp_file" "$_SSHM_CONF"; then
         chmod 600 "$_SSHM_CONF" 2>/dev/null
-	_echo "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
+        _echo "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
     else
-	_echo "${RED}错误：写入配置文件失败，备份已保存至 ${_SSHM_CONF}.bak.*${RESET}"
-	return 1
+        _echo "${RED}错误：写入配置文件失败，备份已保存至 ${_SSHM_CONF}.bak.*${RESET}"
+        return 1
     fi
     sleep 1
     return 0
@@ -1024,25 +985,9 @@ add_node() {
         esac
     done
 
-    sed_i -e '$a\' "$_SSHM_CONF" 2>/dev/null || true
     _backup_config
-    if cat >>"$_SSHM_CONF" <<EOF
-  - name: $(sanitize_yaml_value "$n")
-    group: $(sanitize_yaml_value "$g")
-    host: $(sanitize_yaml_value "$h")
-    port: $p
-    user: $(sanitize_yaml_value "$u")
-    type: $t
-    pass: $(sanitize_yaml_value "$ps")
-    keypath: $(sanitize_yaml_value "$kp")
-    tags: $(sanitize_yaml_value "$tags")
-EOF
-    then
-        _echo "${GREEN}节点 [$n] 已成功添加。 (${h}:${p} ${u}@${t})${RESET}"
-    else
-        _echo "${RED}错误：写入配置文件失败，备份已保存${RESET}"
-        return 1
-    fi
+    _yaml_append_node "$_SSHM_CONF" "$n" "$g" "$h" "$p" "$u" "$t" "$ps" "$kp" "$tags"
+    _echo "${GREEN}节点 [$n] 已成功添加。 (${h}:${p} ${u}@${t})${RESET}"
     sleep 1
 }
 
@@ -1227,13 +1172,20 @@ while [[ $# -gt 0 ]]; do
             ;;
         --validate)
             init_env
-            get_all_nodes "$_SSHM_CONF" "" ""
-            if [[ ${#NODES_ARRAY[@]} -ge 0 ]]; then
-                _echo "${GREEN}配置有效: ${#NODES_ARRAY[@]} 个节点${RESET}"
-            else
-                _echo "${RED}配置解析失败${RESET}"
+            if [[ ! -f "$_SSHM_CONF" ]]; then
+                _echo "${RED}配置文件不存在: $_SSHM_CONF${RESET}"
                 exit 1
             fi
+            if [[ ! -r "$_SSHM_CONF" ]]; then
+                _echo "${RED}配置文件不可读: $_SSHM_CONF${RESET}"
+                exit 1
+            fi
+            if ! grep -q "^nodes:" "$_SSHM_CONF" 2>/dev/null; then
+                _echo "${RED}配置缺少 nodes: 头部${RESET}"
+                exit 1
+            fi
+            get_all_nodes "$_SSHM_CONF" "" ""
+            _echo "${GREEN}配置有效: ${#NODES_ARRAY[@]} 个节点${RESET}"
             exit 0
             ;;
         --import-ssh-config)
