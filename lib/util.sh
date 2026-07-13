@@ -4,7 +4,6 @@ _term_width() {
     tput cols 2>/dev/null || echo "${COLUMNS:-80}"
 }
 
-declare -A _SSHM_PING_CACHE
 _SSHM_HISTORY_FILE="${HOME}/.cache/ssh-manager-history"
 
 _record_connection() {
@@ -24,34 +23,11 @@ _get_recent() {
     fi
 }
 
-_ping_check_cached() {
+_ping_check() {
     local host="$1"
-    local now
-    now=$(date +%s)
-    local cached_time="${_SSHM_PING_CACHE[$host]}"
-    if [[ -z "$cached_time" ]] || ! [[ "$cached_time" =~ ^[0-9]+$ ]]; then
-        cached_time=0
-    fi
-
-    if [[ $((now - cached_time)) -lt 30 ]]; then
-        return 0
-    fi
-
     if [[ "$(uname)" == "Darwin" ]]; then
         ping -c 1 -t 1 "$host" &>/dev/null
     else
         ping -c 1 -W 1 "$host" &>/dev/null
     fi
-
-    if [[ $? -eq 0 ]]; then
-        _SSHM_PING_CACHE[$host]="$now"
-        return 0
-    else
-        _SSHM_PING_CACHE[$host]="$now"
-        return 1
-    fi
-}
-
-_ping_check() {
-    _ping_check_cached "$@"
 }
