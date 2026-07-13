@@ -28,7 +28,10 @@ _ping_check_cached() {
     local host="$1"
     local now
     now=$(date +%s)
-    local cached_time="${_SSHM_PING_CACHE[$host]:-0}"
+    local cached_time=0
+    if [[ -n "${_SSHM_PING_CACHE[$host]+x}" ]]; then
+        cached_time="${_SSHM_PING_CACHE[$host]}"
+    fi
 
     if [[ $((now - cached_time)) -lt 30 ]]; then
         return 0

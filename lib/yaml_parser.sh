@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+_trim() {
+    local var="$1"
+    echo "${var%"${var##*[![:space:]]}"}"
+}
+
 # shellcheck disable=SC2034  # NODE_* variables are intentionally exported for callers
 
 # Trim leading and trailing whitespace from a string
