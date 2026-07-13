@@ -13,13 +13,14 @@ read_node_info() {
 
     local in_node=0
     local current_id=0
+    local _name="" _group="" _host="" _port="22" _user="" _type="pass" _pass="" _keypath="" _tags=""
 
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
             current_id=$((current_id + 1))
             in_node=1
             if [[ $current_id -eq $id ]]; then
-                NODE_NAME=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
+                _name=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
             else
                 in_node=0
             fi
@@ -28,53 +29,53 @@ read_node_info() {
 
         if [[ $in_node -eq 1 && $current_id -eq $id ]]; then
             if [[ "$line" =~ ^[[:space:]]*group:[[:space:]]* ]]; then
-                NODE_GROUP=$(echo "$line" | sed 's/^[[:space:]]*group:[[:space:]]*//')
+                _group=$(echo "$line" | sed 's/^[[:space:]]*group:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*host:[[:space:]]* ]]; then
-                NODE_HOST=$(echo "$line" | sed 's/^[[:space:]]*host:[[:space:]]*//')
+                _host=$(echo "$line" | sed 's/^[[:space:]]*host:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*port:[[:space:]]* ]]; then
-                NODE_PORT=$(echo "$line" | sed 's/^[[:space:]]*port:[[:space:]]*//')
+                _port=$(echo "$line" | sed 's/^[[:space:]]*port:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*user:[[:space:]]* ]]; then
-                NODE_USER=$(echo "$line" | sed 's/^[[:space:]]*user:[[:space:]]*//')
+                _user=$(echo "$line" | sed 's/^[[:space:]]*user:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]* ]]; then
-                NODE_TYPE=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
+                _type=$(echo "$line" | sed 's/^[[:space:]]*type:[[:space:]]*//')
             elif [[ "$line" =~ ^[[:space:]]*pass:[[:space:]]* ]]; then
-                NODE_PASS=$(echo "$line" | sed 's/^[[:space:]]*pass:[[:space:]]*//')
-                if [[ "${NODE_PASS:0:1}${NODE_PASS:(-1)}" == '""' ]]; then
-                    NODE_PASS="${NODE_PASS:1:-1}"
-                elif [[ "${NODE_PASS:0:1}${NODE_PASS:(-1)}" == "''" ]]; then
-                    NODE_PASS="${NODE_PASS:1:-1}"
+                _pass=$(echo "$line" | sed 's/^[[:space:]]*pass:[[:space:]]*//')
+                if [[ "${_pass:0:1}${_pass:(-1)}" == '""' ]]; then
+                    _pass="${_pass:1:-1}"
+                elif [[ "${_pass:0:1}${_pass:(-1)}" == "''" ]]; then
+                    _pass="${_pass:1:-1}"
                 fi
             elif [[ "$line" =~ ^[[:space:]]*keypath:[[:space:]]* ]]; then
-                NODE_KEYPATH=$(echo "$line" | sed 's/^[[:space:]]*keypath:[[:space:]]*//')
-                if [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH:(-1)}" == '""' ]]; then
-                    NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
-                elif [[ "${NODE_KEYPATH:0:1}${NODE_KEYPATH:(-1)}" == "''" ]]; then
-                    NODE_KEYPATH="${NODE_KEYPATH:1:-1}"
+                _keypath=$(echo "$line" | sed 's/^[[:space:]]*keypath:[[:space:]]*//')
+                if [[ "${_keypath:0:1}${_keypath:(-1)}" == '""' ]]; then
+                    _keypath="${_keypath:1:-1}"
+                elif [[ "${_keypath:0:1}${_keypath:(-1)}" == "''" ]]; then
+                    _keypath="${_keypath:1:-1}"
                 fi
             elif [[ "$line" =~ ^[[:space:]]*tags:[[:space:]]* ]]; then
-                NODE_TAGS=$(echo "$line" | sed 's/^[[:space:]]*tags:[[:space:]]*//')
-                NODE_TAGS="${NODE_TAGS// /}"
-                NODE_TAGS="${NODE_TAGS#\"}"; NODE_TAGS="${NODE_TAGS%\"}"
-                NODE_TAGS="${NODE_TAGS#\'}"; NODE_TAGS="${NODE_TAGS%\'}"
+                _tags=$(echo "$line" | sed 's/^[[:space:]]*tags:[[:space:]]*//')
+                _tags="${_tags// /}"
+                _tags="${_tags#\"}"; _tags="${_tags%\"}"
+                _tags="${_tags#\'}"; _tags="${_tags%\'}"
             elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
                 break
             fi
         fi
     done <"$conf"
 
-    NODE_GROUP=${NODE_GROUP:-Default}
-    NODE_PORT=${NODE_PORT:-22}
-    NODE_TYPE=${NODE_TYPE:-pass}
+    NODE_GROUP=${_group:-Default}
+    NODE_PORT=${_port:-22}
+    NODE_TYPE=${_type:-pass}
 
-    NODE_NAME=$(_trim "${NODE_NAME:-}")
+    NODE_NAME=$(_trim "${_name:-}")
     NODE_GROUP=$(_trim "${NODE_GROUP:-}")
-    NODE_HOST=$(_trim "${NODE_HOST:-}")
+    NODE_HOST=$(_trim "${_host:-}")
     NODE_PORT=$(_trim "${NODE_PORT:-}")
-    NODE_USER=$(_trim "${NODE_USER:-}")
+    NODE_USER=$(_trim "${_user:-}")
     NODE_TYPE=$(_trim "${NODE_TYPE:-}")
-    NODE_PASS=$(_trim "${NODE_PASS:-}")
-    NODE_KEYPATH=$(_trim "${NODE_KEYPATH:-}")
-    NODE_TAGS=$(_trim "${NODE_TAGS:-}")
+    NODE_PASS=$(_trim "${_pass:-}")
+    NODE_KEYPATH=$(_trim "${_keypath:-}")
+    NODE_TAGS=$(_trim "${_tags:-}")
 }
 
 get_all_nodes() {
@@ -85,18 +86,15 @@ get_all_nodes() {
     NODES_ARRAY=()
 
     local current_id=0
-    local node_name=""
-    local node_group=""
-    local node_host=""
-    local node_port=""
-    local node_type=""
-    local node_tags=""
+    local node_name="" node_group="" node_host="" node_port="22" node_type="pass" node_tags=""
     local in_node=0
+    local _nodes=()
+    local match=1
 
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* ]]; then
             if [[ $in_node -eq 1 && -n "$node_name" ]]; then
-                local match=1
+                match=1
                 if [[ -n "$filter_key" && "${node_name,,}" != *"$filter_key"* && "$node_host" != *"$filter_key"* ]]; then
                     match=0
                 fi
@@ -104,7 +102,7 @@ get_all_nodes() {
                     match=0
                 fi
                 if [[ $match -eq 1 ]]; then
-                    NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type|$node_tags")
+                    _nodes+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type|$node_tags")
                 fi
             fi
 
@@ -112,11 +110,11 @@ get_all_nodes() {
             in_node=1
             node_name=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//')
             node_group="Default"
-                node_host=""
-                node_port="22"
-                node_type="pass"
-                node_tags=""
-                continue
+            node_host=""
+            node_port="22"
+            node_type="pass"
+            node_tags=""
+            continue
         fi
 
         if [[ $in_node -eq 1 ]]; then
@@ -144,7 +142,7 @@ get_all_nodes() {
     node_type=$(_trim "$node_type")
 
     if [[ $in_node -eq 1 && -n "$node_name" ]]; then
-        local match=1
+        match=1
         if [[ -n "$filter_key" && "${node_name,,}" != *"$filter_key"* && "$node_host" != *"$filter_key"* ]]; then
             match=0
         fi
@@ -152,7 +150,10 @@ get_all_nodes() {
             match=0
         fi
         if [[ $match -eq 1 ]]; then
-            NODES_ARRAY+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type|$node_tags")
+            _nodes+=("$current_id|$node_name|$node_group|$node_host|$node_port|$node_type|$node_tags")
         fi
     fi
+
+    # shellcheck disable=SC2034
+    NODES_ARRAY=("${_nodes[@]}")
 }

@@ -21,14 +21,14 @@ sed_i() {
 }
 
 _backup_config() {
-    if [[ -f "$CONF" ]]; then
-        cp "$CONF" "${CONF}.bak.$(date +%s)" 2>/dev/null || true
+    if [[ -f "$_SSHM_CONF" ]]; then
+        cp "$_SSHM_CONF" "${_SSHM_CONF}.bak.$(date +%s)" 2>/dev/null || true
     fi
 }
 
-declare -A _PING_CACHE
-_HISTORY_FILE="${HOME}/.cache/ssh-manager-history"
-_SORT_MODE="group"
+declare -A _SSHM_PING_CACHE
+_SSHM_HISTORY_FILE="${HOME}/.cache/ssh-manager-history"
+_SSHM_SORT_MODE="group"
 
 _term_width() {
     tput cols 2>/dev/null || echo "${COLUMNS:-80}"
@@ -36,18 +36,18 @@ _term_width() {
 
 _record_connection() {
     local name="$1" host="$2"
-    mkdir -p "$(dirname "$_HISTORY_FILE")" 2>/dev/null
+    mkdir -p "$(dirname "$_SSHM_HISTORY_FILE")" 2>/dev/null
     local entry
     entry="${name}|${host}|$(date +%s)"
-    grep -vFx "$entry" "$_HISTORY_FILE" 2>/dev/null > "${_HISTORY_FILE}.tmp" || true
-    echo "$entry" >> "${_HISTORY_FILE}.tmp"
-    tail -20 "${_HISTORY_FILE}.tmp" > "$_HISTORY_FILE"
-    rm -f "${_HISTORY_FILE}.tmp"
+    grep -vFx "$entry" "$_SSHM_HISTORY_FILE" 2>/dev/null > "${_SSHM_HISTORY_FILE}.tmp" || true
+    echo "$entry" >> "${_SSHM_HISTORY_FILE}.tmp"
+    tail -20 "${_SSHM_HISTORY_FILE}.tmp" > "$_SSHM_HISTORY_FILE"
+    rm -f "${_SSHM_HISTORY_FILE}.tmp"
 }
 
 _get_recent() {
-    if [[ -f "$_HISTORY_FILE" ]]; then
-        tac "$_HISTORY_FILE" 2>/dev/null | head -10
+    if [[ -f "$_SSHM_HISTORY_FILE" ]]; then
+        tac "$_SSHM_HISTORY_FILE" 2>/dev/null | head -10
     fi
 }
 
@@ -55,7 +55,7 @@ _ping_check_cached() {
     local host="$1"
     local now
     now=$(date +%s)
-    local cached_time="${_PING_CACHE[$host]:-0}"
+    local cached_time="${_SSHM_PING_CACHE[$host]:-0}"
 
     if [[ $((now - cached_time)) -lt 30 ]]; then
         return 0
@@ -68,10 +68,10 @@ _ping_check_cached() {
     fi
 
     if [[ $? -eq 0 ]]; then
-        _PING_CACHE[$host]="$now"
+        _SSHM_PING_CACHE[$host]="$now"
         return 0
     else
-        _PING_CACHE[$host]="$now"
+        _SSHM_PING_CACHE[$host]="$now"
         return 1
     fi
 }
@@ -87,18 +87,18 @@ BLUE=$'\033[34m'
 CYAN=$'\033[36m'
 RESET=$'\033[0m'
 
-declare -A _THEMES
-_THEMES[dark]="31 32 33 34 36 深色"
-_THEMES[light]="91 92 93 94 96 亮色"
-_THEMES[ocean]="36 34 37 36 34 海洋"
-_THEMES[sunset]="31 33 35 33 31 日落"
-_THEMES[forest]="32 36 33 34 32 森林"
-_THEME_NAMES=(dark light ocean sunset forest)
-_THEME_IDX=0
+declare -A _SSHM_THEMES
+_SSHM_THEMES[dark]="31 32 33 34 36 深色"
+_SSHM_THEMES[light]="91 92 93 94 96 亮色"
+_SSHM_THEMES[ocean]="36 34 37 36 34 海洋"
+_SSHM_THEMES[sunset]="31 33 35 33 31 日落"
+_SSHM_THEMES[forest]="32 36 33 34 32 森林"
+_SSHM_THEME_NAMES=(dark light ocean sunset forest)
+_SSHM_THEME_IDX=0
 
 _apply_theme() {
     local name="$1"
-    IFS=' ' read -r r g y b c _ <<<"${_THEMES[$name]}"
+    IFS=' ' read -r r g y b c _ <<<"${_SSHM_THEMES[$name]}"
     RED=$'\033['"${r}"'m'
     GREEN=$'\033['"${g}"'m'
     YELLOW=$'\033['"${y}"'m'
@@ -108,18 +108,18 @@ _apply_theme() {
 
 _choose_theme() {
     local sel=0 orig_r="$RED" orig_g="$GREEN" orig_y="$YELLOW" orig_b="$BLUE" orig_c="$CYAN"
-    _apply_theme "${_THEME_NAMES[$sel]}"
+    _apply_theme "${_SSHM_THEME_NAMES[$sel]}"
     while true; do
         printf '\033[H\033[J'
         echo ""
         _echo "  ${CYAN}==== 选择主题 (实时预览) ====${RESET}\n"
-        for i in "${!_THEME_NAMES[@]}"; do
-            local tname="${_THEME_NAMES[$i]}"
-            local label="${_THEMES[$tname]##* }"
+        for i in "${!_SSHM_THEME_NAMES[@]}"; do
+            local tname="${_SSHM_THEME_NAMES[$i]}"
+            local label="${_SSHM_THEMES[$tname]##* }"
             local arrow="  "
             [[ $i -eq $sel ]] && arrow="${BLUE}>${RESET} "
             local r g y b c
-            IFS=' ' read -r r g y b c _ <<<"${_THEMES[$tname]}"
+            IFS=' ' read -r r g y b c _ <<<"${_SSHM_THEMES[$tname]}"
             local sample="\033[${r}m●\033[${g}m●\033[${y}m●\033[${b}m●\033[${c}m●${RESET}"
             _echo "${arrow}${sample}  ${label}"
         done
@@ -129,15 +129,15 @@ _choose_theme() {
         local key
         key=$(_read_key)
         case "$key" in
-            UP)    ((sel > 0)) && ((sel--)) && _apply_theme "${_THEME_NAMES[$sel]}" ;;
-            DOWN)  ((sel < ${#_THEME_NAMES[@]} - 1)) && ((sel++)) && _apply_theme "${_THEME_NAMES[$sel]}" ;;
+            UP)    ((sel > 0)) && ((sel--)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
+            DOWN)  ((sel < ${#_SSHM_THEME_NAMES[@]} - 1)) && ((sel++)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
             ENTER) return ;;
             q|Q)   RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"; CYAN="$orig_c"; return ;;
         esac
     done
 }
 
-CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
+_SSHM_CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || cat "/usr/share/ssh-manager/VERSION" 2>/dev/null || echo "0.2")
@@ -184,72 +184,72 @@ _resolve_config() {
     fi
 
     if [[ -f "$user_conf" ]]; then
-        CONF="$user_conf"
+        _SSHM_CONF="$user_conf"
     fi
 
     local conf_dir
-    conf_dir=$(dirname "$CONF")
+    conf_dir=$(dirname "$_SSHM_CONF")
 
-    if [[ "$CONF" == /etc/* ]]; then
-        if [[ -f "$CONF" ]]; then
-            if [[ ! -r "$CONF" ]]; then
-                _die "错误：系统配置文件 $CONF 不可读"
+    if [[ "$_SSHM_CONF" == /etc/* ]]; then
+        if [[ -f "$_SSHM_CONF" ]]; then
+            if [[ ! -r "$_SSHM_CONF" ]]; then
+                _die "错误：系统配置文件 $_SSHM_CONF 不可读"
             fi
             if [[ ! -f "$user_conf" ]]; then
-                if cp "$CONF" "$user_conf" 2>/dev/null; then
+                if cp "$_SSHM_CONF" "$user_conf" 2>/dev/null; then
                     chmod 600 "$user_conf" 2>/dev/null || true
                     _echo "${GREEN}已复制系统配置到个人目录: $user_conf${RESET}"
-                    CONF="$user_conf"
+                    _SSHM_CONF="$user_conf"
                 else
                     _echo "${YELLOW}使用只读的系统配置文件（无法保存更改）${RESET}"
-                    if ! grep -q "^nodes:" "$CONF" 2>/dev/null; then
+                    if ! grep -q "^nodes:" "$_SSHM_CONF" 2>/dev/null; then
                         _die "错误：系统配置文件缺少 nodes: 头部，请检查配置"
                     fi
                 fi
             else
-                CONF="$user_conf"
+                _SSHM_CONF="$user_conf"
             fi
         else
             mkdir -p "$user_conf_dir"
             touch "$user_conf"
             chmod 600 "$user_conf"
-            CONF="$user_conf"
-            echo "nodes:" >"$CONF"
-            _echo "${YELLOW}已创建个人配置文件: $CONF${RESET}"
+            _SSHM_CONF="$user_conf"
+            echo "nodes:" >"$_SSHM_CONF"
+            _echo "${YELLOW}已创建个人配置文件: $_SSHM_CONF${RESET}"
         fi
     else
         if [[ ! -w "$conf_dir" ]]; then
             if [[ -w "$user_conf_dir" ]]; then
-                CONF="$user_conf"
+                _SSHM_CONF="$user_conf"
             else
                 _die "错误：目录 $conf_dir 不可写"
             fi
         fi
 
-        if [[ ! -f "$CONF" ]]; then
-            echo "nodes:" >"$CONF"
-            _echo "${YELLOW}已创建默认配置文件: $CONF${RESET}"
-        elif [[ ! -r "$CONF" ]]; then
-            _die "错误：配置文件 $CONF 不可读"
+        if [[ ! -f "$_SSHM_CONF" ]]; then
+            echo "nodes:" >"$_SSHM_CONF"
+            _echo "${YELLOW}已创建默认配置文件: $_SSHM_CONF${RESET}"
+        elif [[ ! -r "$_SSHM_CONF" ]]; then
+            _die "错误：配置文件 $_SSHM_CONF 不可读"
         fi
     fi
 }
 
 _setup_config_permissions() {
-    if [[ ! -f "$CONF" ]]; then
+    if [[ ! -f "$_SSHM_CONF" ]]; then
         return
     fi
 
     local file_owner
-    file_owner=$(stat -c "%U" "$CONF" 2>/dev/null || stat -f "%Su" "$CONF" 2>/dev/null)
+    file_owner=$(stat -c "%U" "$_SSHM_CONF" 2>/dev/null || stat -f "%Su" "$_SSHM_CONF" 2>/dev/null)
     local current_user
     current_user=$(whoami)
 
-    if [[ "$CONF" == /etc/* ]]; then
+    if [[ "$_SSHM_CONF" == /etc/* ]]; then
         if [[ "$current_user" != "root" ]]; then
             _echo "${YELLOW}提示：配置文件位于 /etc 目录，普通用户无法设置 600 权限，请以 root 身份运行或忽略此提示${RESET}"
         else
-            if chmod 600 "$CONF"; then
+            if chmod 600 "$_SSHM_CONF"; then
                 _echo "${GREEN}已将 /etc 目录下的配置文件权限设置为 600${RESET}"
             else
                 _echo "${RED}错误：root 用户也无法设置 /etc 目录下配置文件的权限为 600${RESET}"
@@ -257,11 +257,11 @@ _setup_config_permissions() {
         fi
     else
         if [[ "$file_owner" == "$current_user" ]]; then
-            if ! chmod 600 "$CONF"; then
+            if ! chmod 600 "$_SSHM_CONF"; then
                 _echo "${YELLOW}警告：无法设置配置文件权限为 600${RESET}"
             fi
         else
-            _echo "${YELLOW}提示：配置文件 $CONF 不属于当前用户 $current_user，无法设置 600 权限${RESET}"
+            _echo "${YELLOW}提示：配置文件 $_SSHM_CONF 不属于当前用户 $current_user，无法设置 600 权限${RESET}"
         fi
     fi
 }
@@ -290,7 +290,7 @@ init_env() {
 # --- 3. 核心连接逻辑 ---
 ssh_connect() {
     local id=$1
-    read_node_info "$CONF" "$id"
+    read_node_info "$_SSHM_CONF" "$id"
 
     if [[ -z "$NODE_HOST" ]]; then
         _echo "${RED}无效 ID: $id (未找到节点)${RESET}"
@@ -396,11 +396,11 @@ _render_list() {
     visible_h=$((term_h - 4))
 
     local current_mtime
-    current_mtime=$(stat -c %Y "$CONF" 2>/dev/null || stat -f %m "$CONF" 2>/dev/null || echo 0)
-    if [[ "$current_mtime" != "${_CONF_MTIME:-0}" || "$filter_key" != "${_LAST_FILTER:-}" ]]; then
-        get_all_nodes "$CONF" "$filter_key" ""
-        _CONF_MTIME="$current_mtime"
-        _LAST_FILTER="$filter_key"
+    current_mtime=$(stat -c %Y "$_SSHM_CONF" 2>/dev/null || stat -f %m "$_SSHM_CONF" 2>/dev/null || echo 0)
+    if [[ "$current_mtime" != "${_SSHM_CONF_MTIME:-0}" || "$filter_key" != "${_SSHM_LAST_FILTER:-}" ]]; then
+        get_all_nodes "$_SSHM_CONF" "$filter_key" ""
+        _SSHM_CONF_MTIME="$current_mtime"
+        _SSHM_LAST_FILTER="$filter_key"
         if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
             local sorted_output
             local tag_filters=()
@@ -426,7 +426,7 @@ _render_list() {
             fi
             if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
                 local sorted_output
-                case "${_SORT_MODE:-group}" in
+                case "${_SSHM_SORT_MODE:-group}" in
                     name)   sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k2,2) ;;
                     status) sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}") ;;
                     *)      sorted_output=$(printf "%s\n" "${NODES_ARRAY[@]}" | sort -t'|' -k3,3 -k2,2) ;;
@@ -443,13 +443,13 @@ _render_list() {
         disp_nodes+=("$original_id|$name|$group|$host|$port|$type|${tags:-}")
         found=1
     done
-    _RENDERED_NODES=("${disp_nodes[@]}")
+    _SSHM_RENDERED_NODES=("${disp_nodes[@]}")
 
     # Auto-scroll
     local total=${#disp_nodes[@]}
-    if [[ $selected_idx -lt ${_SCROLL_OFFSET:-0} ]]; then _SCROLL_OFFSET=$selected_idx; fi
-    if [[ $total -gt 0 && $selected_idx -ge $((_SCROLL_OFFSET + visible_h)) ]]; then _SCROLL_OFFSET=$((selected_idx - visible_h + 1)); fi
-    [[ ${_SCROLL_OFFSET:-0} -lt 0 ]] && _SCROLL_OFFSET=0
+    if [[ $selected_idx -lt ${_SSHM_SCROLL_OFFSET:-0} ]]; then _SSHM_SCROLL_OFFSET=$selected_idx; fi
+    if [[ $total -gt 0 && $selected_idx -ge $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _SSHM_SCROLL_OFFSET=$((selected_idx - visible_h + 1)); fi
+    [[ ${_SSHM_SCROLL_OFFSET:-0} -lt 0 ]] && _SSHM_SCROLL_OFFSET=0
 
     local name_w=$(( term_w > 100 ? 24 : 16 ))
     local host_w=$(( term_w > 100 ? 26 : 21 ))
@@ -459,13 +459,13 @@ _render_list() {
     printf '\033[H\033[J'
     local hdr="SSH Manager v0.5.3"
     [[ -n "$filter_key" ]] && hdr="${hdr}  过滤: ${filter_key} (ESC清除)"
-    local sort_l="组"; case "${_SORT_MODE:-group}" in name) sort_l="名" ;; status) sort_l="状态" ;; esac
+    local sort_l="组"; case "${_SSHM_SORT_MODE:-group}" in name) sort_l="名" ;; status) sort_l="状态" ;; esac
     _echo "${CYAN}═══ ${hdr}  排序:${sort_l} ═══${RESET}"
     _echo "${CYAN}$(printf "$FMT" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
 
     local display_id=1 idx=0 row=0
     for node in "${disp_nodes[@]}"; do
-        [[ $idx -lt ${_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
+        [[ $idx -lt ${_SSHM_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
         [[ $row -ge $visible_h ]] && break
 
         IFS='|' read -r original_id name group host port type tags <<<"$node"
@@ -495,8 +495,8 @@ _render_list() {
     fi
 
     # Scroll indicators
-    if [[ ${_SCROLL_OFFSET:-0} -gt 0 ]]; then _echo "${YELLOW}  ▲ 上方还有节点${RESET}"; fi
-    if [[ $total -gt $((_SCROLL_OFFSET + visible_h)) ]]; then _echo "${YELLOW}  ▼ 下方还有节点 ($((total - _SCROLL_OFFSET - visible_h)))${RESET}"; fi
+    if [[ ${_SSHM_SCROLL_OFFSET:-0} -gt 0 ]]; then _echo "${YELLOW}  ▲ 上方还有节点${RESET}"; fi
+    if [[ $total -gt $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _echo "${YELLOW}  ▼ 下方还有节点 ($((total - _SSHM_SCROLL_OFFSET - visible_h)))${RESET}"; fi
 
     # Footer
     echo ""
@@ -538,7 +538,7 @@ _preview_node() {
 _edit_node() {
     local target_node="$1"
     IFS='|' read -r id name group host port type <<<"$target_node"
-    read_node_info "$CONF" "$id"
+    read_node_info "$_SSHM_CONF" "$id"
 
     local n="${NODE_NAME:-$name}" g="${NODE_GROUP:-$group}" h="${NODE_HOST:-$host}"
     local p="${NODE_PORT:-$port}" u="${NODE_USER:-$name}" t="${NODE_TYPE:-$type}"
@@ -606,7 +606,7 @@ _edit_node() {
         [[ $skip -eq 1 ]] && continue
         [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]* && $skip -eq 1 ]] && skip=0
         echo "$line" >> "$tmp_file"
-    done <"$CONF"
+    done <"$_SSHM_CONF"
     cat >>"$tmp_file" <<EOF
   - name: $(sanitize_yaml_value "$n")
     group: $(sanitize_yaml_value "$g")
@@ -618,7 +618,7 @@ _edit_node() {
     keypath: $(sanitize_yaml_value "$kp")
     tags: $(sanitize_yaml_value "$tags")
 EOF
-    if mv "$tmp_file" "$CONF"; then
+    if mv "$tmp_file" "$_SSHM_CONF"; then
         _echo "${GREEN}节点已更新: $n${RESET}"; sleep 1
     else
         _echo "${RED}保存失败${RESET}"; sleep 1; rm -f "$tmp_file"
@@ -626,18 +626,18 @@ EOF
 }
 
 _undo_delete() {
-    if [[ -z "${_DELETED_YAML:-}" ]]; then
+    if [[ -z "${_SSHM_DELETED_YAML:-}" ]]; then
         _echo "\n${YELLOW}没有可恢复的节点${RESET}"; sleep 1; return
     fi
     _backup_config
-    if cat >>"$CONF" <<EOF
-${_DELETED_YAML}
+    if cat >>"$_SSHM_CONF" <<EOF
+${_SSHM_DELETED_YAML}
 EOF
     then
         local name
-        name=$(echo "$_DELETED_YAML" | grep 'name:' | sed 's/.*name: *//')
+        name=$(echo "$_SSHM_DELETED_YAML" | grep 'name:' | sed 's/.*name: *//')
         _echo "${GREEN}已恢复节点: ${name}${RESET}"
-        unset _DELETED_YAML
+        unset _SSHM_DELETED_YAML
     else
         _echo "${RED}恢复失败${RESET}"
     fi
@@ -648,9 +648,9 @@ _interactive_list() {
     local filter_key=""
     local selected_idx=0
     local mode="normal"
-    _RENDERED_NODES=()
-    _SORT_MODE="group"
-    _SCROLL_OFFSET=0
+    _SSHM_RENDERED_NODES=()
+    _SSHM_SORT_MODE="group"
+    _SSHM_SCROLL_OFFSET=0
 
     trap 'filter_key=""; selected_idx=0' SIGINT
 
@@ -665,12 +665,12 @@ _interactive_list() {
             ((selected_idx > 0)) && ((selected_idx--))
             ;;
         DOWN)
-            local total=${#_RENDERED_NODES[@]}
+            local total=${#_SSHM_RENDERED_NODES[@]}
             ((selected_idx < total - 1)) && ((selected_idx++))
             ;;
         ENTER)
-            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_RENDERED_NODES[@]} ]]; then
-                local target_node="${_RENDERED_NODES[$selected_idx]}"
+            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
+                local target_node="${_SSHM_RENDERED_NODES[$selected_idx]}"
                 local original_id
                 original_id=$(echo "$target_node" | cut -d'|' -f1)
                 if [[ "$mode" == "delete" ]]; then
@@ -709,7 +709,7 @@ _interactive_list() {
         ESC)
             filter_key=""
             selected_idx=0
-            _SCROLL_OFFSET=0
+            _SSHM_SCROLL_OFFSET=0
             ;;
         a|A)
             add_node
@@ -723,16 +723,16 @@ _interactive_list() {
             fi
             ;;
         s|S)
-            case "$_SORT_MODE" in
-                group)  _SORT_MODE="name" ;;
-                name)   _SORT_MODE="status" ;;
-                status) _SORT_MODE="group" ;;
+            case "$_SSHM_SORT_MODE" in
+                group)  _SSHM_SORT_MODE="name" ;;
+                name)   _SSHM_SORT_MODE="status" ;;
+                status) _SSHM_SSHM_SORT_MODE="group" ;;
             esac
             selected_idx=0
-            _SCROLL_OFFSET=0
+            _SSHM_SCROLL_OFFSET=0
             ;;
         r|R)
-            if [[ -f "$_HISTORY_FILE" ]]; then
+            if [[ -f "$_SSHM_HISTORY_FILE" ]]; then
     # clear screen by moving cursor home and clearing below
     printf '\033[H\033[J'
                 _echo "${CYAN}==== 最近连接 ====${RESET}"
@@ -752,16 +752,16 @@ _interactive_list() {
             fi
             ;;
         e|E)
-            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_RENDERED_NODES[@]} ]]; then
-                _edit_node "${_RENDERED_NODES[$selected_idx]}"
+            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
+                _edit_node "${_SSHM_RENDERED_NODES[$selected_idx]}"
             fi
             ;;
         x|X)
             export_config
             ;;
         p|P)
-            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_RENDERED_NODES[@]} ]]; then
-                _preview_node "${_RENDERED_NODES[$selected_idx]}"
+            if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
+                _preview_node "${_SSHM_RENDERED_NODES[$selected_idx]}"
             fi
             ;;
         t|T)
@@ -780,7 +780,7 @@ _interactive_list() {
             selected_idx=0
             ;;
         G)
-            local total=${#_RENDERED_NODES[@]}
+            local total=${#_SSHM_RENDERED_NODES[@]}
             ((total > 0)) && selected_idx=$((total - 1))
             ;;
         u|U)
@@ -788,9 +788,9 @@ _interactive_list() {
             ;;
         1|2|3|4|5|6|7|8|9)
             local num_idx=$((key - 1))
-            if [[ $num_idx -lt ${#_RENDERED_NODES[@]} ]]; then
+            if [[ $num_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
                 local tn ode_id ode_name ode_host
-                tn="${_RENDERED_NODES[$num_idx]}"
+                tn="${_SSHM_RENDERED_NODES[$num_idx]}"
                 ode_id=$(echo "$tn" | cut -d'|' -f1)
                 ode_name=$(echo "$tn" | cut -d'|' -f2)
                 ode_host=$(echo "$tn" | cut -d'|' -f4)
@@ -819,7 +819,7 @@ _interactive_list() {
 perform_delete() {
     local id=$1
     [[ "$id" =~ ^[0-9]+$ ]] || { _echo "${RED}无效 ID: $id${RESET}"; sleep 1; return 1; }
-    read_node_info "$CONF" "$id"
+    read_node_info "$_SSHM_CONF" "$id"
 
     if [[ -z "$NODE_HOST" ]]; then
         _echo "${RED}无效 ID: $id (未找到节点)${RESET}"
@@ -834,7 +834,7 @@ perform_delete() {
         return 0
     fi
 
-    _DELETED_YAML="  - name: $(sanitize_yaml_value "$NODE_NAME")
+    _SSHM_DELETED_YAML="  - name: $(sanitize_yaml_value "$NODE_NAME")
     group: $(sanitize_yaml_value "$NODE_GROUP")
     host: $(sanitize_yaml_value "$NODE_HOST")
     port: $NODE_PORT
@@ -869,18 +869,18 @@ perform_delete() {
         fi
 
         echo "$line" >>"$tmp_file"
-    done <"$CONF"
+    done <"$_SSHM_CONF"
 
     sed_i '/^[[:space:]]*$/N;/^[[:space:]]*\n[[:space:]]*$/D' "$tmp_file"
     if [[ $(head -n1 "$tmp_file" | tr -d '[:space:]') != "nodes:" ]]; then
         sed_i '1i nodes:' "$tmp_file"
     fi
     _backup_config
-    if mv "$tmp_file" "$CONF"; then
-        chmod 600 "$CONF" 2>/dev/null
+    if mv "$tmp_file" "$_SSHM_CONF"; then
+        chmod 600 "$_SSHM_CONF" 2>/dev/null
 	_echo "${GREEN}节点 [$NODE_NAME] 已成功删除。${RESET}"
     else
-	_echo "${RED}错误：写入配置文件失败，备份已保存至 ${CONF}.bak.*${RESET}"
+	_echo "${RED}错误：写入配置文件失败，备份已保存至 ${_SSHM_CONF}.bak.*${RESET}"
 	return 1
     fi
     sleep 1
@@ -1024,9 +1024,9 @@ add_node() {
         esac
     done
 
-    sed_i -e '$a\' "$CONF" 2>/dev/null || true
+    sed_i -e '$a\' "$_SSHM_CONF" 2>/dev/null || true
     _backup_config
-    if cat >>"$CONF" <<EOF
+    if cat >>"$_SSHM_CONF" <<EOF
   - name: $(sanitize_yaml_value "$n")
     group: $(sanitize_yaml_value "$g")
     host: $(sanitize_yaml_value "$h")
@@ -1048,7 +1048,7 @@ EOF
 
 # --- 8. 导入导出功能 ---
 export_config() {
-    if [[ ! -f "$CONF" ]]; then
+    if [[ ! -f "$_SSHM_CONF" ]]; then
         _echo "${RED}配置文件不存在${RESET}"
         sleep 1
         return 1
@@ -1067,7 +1067,7 @@ export_config() {
         _echo "\n--- ${BLUE}BASE64 配置导出${RESET} ---"
         _echo "${YELLOW}注意：此内容包含敏感的密码信息，请妥善保管！${RESET}"
         echo
-        if ! base64 < "$CONF" | tr -d '\n'; then
+        if ! base64 < "$_SSHM_CONF" | tr -d '\n'; then
             _echo "${RED}导出失败：无法读取配置文件${RESET}"
             sleep 2
             return 1
@@ -1080,7 +1080,7 @@ export_config() {
         read -r -p "请输入导出文件路径 (默认: ./ssh-manager-config.yaml): " export_file
         export_file=${export_file:-"./ssh-manager-config.yaml"}
 
-        if cp "$CONF" "$export_file"; then
+        if cp "$_SSHM_CONF" "$export_file"; then
             chmod 600 "$export_file" 2>/dev/null
             _echo "${GREEN}配置已导出到: $export_file${RESET}"
         else
@@ -1131,8 +1131,8 @@ import_config() {
         fi
 
         _backup_config
-        if echo "$b64_clean" | base64 -d >"$CONF"; then
-            chmod 600 "$CONF" 2>/dev/null
+        if echo "$b64_clean" | base64 -d >"$_SSHM_CONF"; then
+            chmod 600 "$_SSHM_CONF" 2>/dev/null
             _echo "${GREEN}配置导入成功${RESET}"
         else
             _echo "${RED}错误：写入配置文件失败，备份已保存${RESET}"
@@ -1166,8 +1166,8 @@ import_config() {
         fi
 
         _backup_config
-        if cp "$import_file" "$CONF"; then
-            chmod 600 "$CONF" 2>/dev/null
+        if cp "$import_file" "$_SSHM_CONF"; then
+            chmod 600 "$_SSHM_CONF" 2>/dev/null
             _echo "${GREEN}配置从文件导入成功: $import_file${RESET}"
         else
             _echo "${RED}导入失败，备份已保存${RESET}"
@@ -1219,7 +1219,7 @@ while [[ $# -gt 0 ]]; do
             shift
             if [[ -n "${1:-}" ]]; then
                 export SSH_MANAGER_CONFIG="$1"
-                CONF="$1"
+                _SSHM_CONF="$1"
                 shift
             else
                 _die "Error: --config requires a path argument"
@@ -1227,7 +1227,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --validate)
             init_env
-            get_all_nodes "$CONF" "" ""
+            get_all_nodes "$_SSHM_CONF" "" ""
             if [[ ${#NODES_ARRAY[@]} -ge 0 ]]; then
                 _echo "${GREEN}配置有效: ${#NODES_ARRAY[@]} 个节点${RESET}"
             else
@@ -1248,7 +1248,7 @@ while [[ $# -gt 0 ]]; do
             while IFS= read -r line; do
                 if [[ "$line" =~ ^[[:space:]]*Host[[:space:]]+(.+) ]]; then
                     if [[ -n "$_cn" && -n "$_ch" ]]; then
-                        cat >>"$CONF" <<NODE
+                        cat >>"$_SSHM_CONF" <<NODE
   - name: $_cn
     group: Imported
     host: $_ch
@@ -1272,7 +1272,7 @@ NODE
                 fi
             done <"$_ssh_conf"
             if [[ -n "$_cn" && -n "$_ch" ]]; then
-                cat >>"$CONF" <<NODE
+                cat >>"$_SSHM_CONF" <<NODE
   - name: $_cn
     group: Imported
     host: $_ch
@@ -1293,7 +1293,7 @@ NODE
             ;;
         --export-ssh-config)
             init_env
-            get_all_nodes "$CONF" "" ""
+            get_all_nodes "$_SSHM_CONF" "" ""
             echo "# Generated by ssh-manager"
             for node in "${NODES_ARRAY[@]}"; do
                 IFS='|' read -r id name group host port type <<<"$node"
@@ -1345,7 +1345,7 @@ show_help() {
 if [[ $# -gt 0 ]]; then
     keyword="${1,,}"
     shift
-    get_all_nodes "$CONF" "$keyword" ""
+    get_all_nodes "$_SSHM_CONF" "$keyword" ""
     if [[ ${#NODES_ARRAY[@]} -eq 0 ]]; then
         _die "无匹配节点: $keyword"
     elif [[ ${#NODES_ARRAY[@]} -eq 1 ]]; then
