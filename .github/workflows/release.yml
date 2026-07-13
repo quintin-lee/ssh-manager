@@ -23,6 +23,24 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "$VERSION" > VERSION
 
+      - name: Update README with version
+        run: |
+          sed -i "s/ssh-manager-[0-9.]*\.run/ssh-manager-${VERSION}.run/g" README.md
+          sed -i "s/ssh-manager_[0-9.]*-[0-9]*_all\.deb/ssh-manager_${VERSION}-1_all.deb/g" README.md
+          sed -i "s/ssh-manager-[0-9.]*-[0-9]*\.noarch\.rpm/ssh-manager-${VERSION}-1.noarch.rpm/g" README.md
+          sed -i "s/ssh-manager-[0-9.]*-[0-9]*-any\.pkg\.tar\.zst/ssh-manager-${VERSION}-4-any.pkg.tar.zst/g" README.md
+          sed -i "s/ssh-manager-[0-9.]*\.tar\.gz/ssh-manager-${VERSION}.tar.gz/g" README.md
+          sed -i "s/ssh-manager-[0-9.]*\//ssh-manager-${VERSION}\//g" README.md
+          git diff README.md || true
+
+      - name: Commit README version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md VERSION
+          git commit -m "chore: update README and VERSION to ${VERSION}"
+          git push
+
       - name: Install build deps
         run: |
           sudo apt-get update -qq || true

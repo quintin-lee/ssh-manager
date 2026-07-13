@@ -1270,7 +1270,7 @@ init_env
 
 show_help() {
     echo ""
-    _echo "${CYAN}==== SSH MANAGER v0.2 帮助 ====${RESET}"
+    _echo "${CYAN}==== SSH MANAGER v${VERSION} 帮助 ====${RESET}"
     echo ""
     _echo "${GREEN}列表导航:${RESET}"
     echo "  ${BLUE}↑↓${RESET}        - 选择节点, 当前行高亮"
@@ -1288,6 +1288,8 @@ show_help() {
     echo "  sshm prod         - 直接搜索并连接匹配节点"
     echo "  sshm --config <f>  - 使用指定配置文件"
     echo "  sshm --help        - 显示此帮助"
+    echo ""
+    _echo "${YELLOW}安全提示: 密码以明文存储在 config.yaml 中，请确保文件权限为 600，并推荐使用 SSH 密钥认证。${RESET}"
     echo ""
     read -n 1 -r -p "按任意键返回..." _
     echo
