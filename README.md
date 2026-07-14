@@ -3,6 +3,16 @@
 基于 expect 的 SSH 连接管理工具。方向键导航、实时过滤、命令行直连、5 种打包格式。
 
 [![Tests](https://github.com/quintin-lee/ssh-manager/actions/workflows/test.yml/badge.svg)](https://github.com/quintin-lee/ssh-manager/actions/workflows/test.yml)
+![Version](https://img.shields.io/badge/version-0.5.3-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
+
+## 项目状态
+
+- **稳定性**：核心功能（连接管理、交互式列表、配置导入/导出）已稳定，覆盖 73 个单元测试
+- **CI**：每次 push 由 GitHub Actions 验证（`lint-and-test` 静态检查 + 单元测试，以及 `package-verify` 五种包格式的安装→运行→卸载循环）
+- **支持平台**：Linux（deb/rpm/run/tarball）、macOS（源码直接运行）
+- **打包格式**：`.deb`、`.rpm`、`.run`（自解压）、通用 `tarball`、Arch `pkg.tar.zst`
 
 ## 安装
 
