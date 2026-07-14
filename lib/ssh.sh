@@ -48,8 +48,19 @@ ssh_connect() {
     fi
 
     local exit_code=0
-    local tcl_template
-    tcl_template="$(cat "${SCRIPT_DIR}/../lib/ssh_connect.tcl")"
+    local tcl_template tcl_path
+    if [[ -f "${SCRIPT_DIR}/../lib/ssh_connect.tcl" ]]; then
+        tcl_path="${SCRIPT_DIR}/../lib/ssh_connect.tcl"
+    elif [[ -f "/usr/local/lib/ssh_connect.tcl" ]]; then
+        tcl_path="/usr/local/lib/ssh_connect.tcl"
+    elif [[ -f "/usr/share/ssh-manager/ssh_connect.tcl" ]]; then
+        tcl_path="/usr/share/ssh-manager/ssh_connect.tcl"
+    elif [[ -f "/usr/local/share/ssh-manager/ssh_connect.tcl" ]]; then
+        tcl_path="/usr/local/share/ssh-manager/ssh_connect.tcl"
+    else
+        _die "Error: ssh_connect.tcl not found. Please reinstall ssh-manager."
+    fi
+    tcl_template="$(cat "$tcl_path")"
     tcl_template="${tcl_template//__SSH_EXTRA__/${ssh_extra}}"
     tcl_template="${tcl_template//__PASSPHRASE_BRANCH__/${passphrase_branch}}"
 
