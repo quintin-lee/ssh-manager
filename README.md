@@ -39,7 +39,7 @@ makepkg -si             # Arch (使用 PKGBUILD)
 
 ### 依赖
 
-`expect` `bash` `sed` `awk` `base64`（ping 可选，用于健康检查）
+`expect` `bash` `sed` `awk` `ping` `base64`（ping 用于节点健康检查）
 
 ## 使用
 
@@ -141,13 +141,16 @@ sshm --export-ssh-config
 
 ```bash
 ./bin/sshm.sh               # 从源码运行
-bats tests/                  # 运行测试 (58 tests)
+bats tests/                  # 运行测试 (73 tests)
 shellcheck bin/sshm.sh       # 静态检查
 ```
 
 ## CI/CD
 
-每次 push 自动验证所有包格式（deb/rpm/run/tarball/arch）的安装→运行→卸载循环。
+每次 push 触发 `Tests` 工作流：
+
+- `lint-and-test`：ShellCheck 静态检查 + 73 个 bats 单元测试（Ubuntu 与 macOS 双平台）
+- `package-verify`：deb/rpm/run/tarball/arch 五种包格式的安装→运行→卸载循环
 
 tag `v*` 触发 Release 自动构建全格式包并发布到 GitHub Releases。
 

@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--validate` now checks file existence, readability, and `nodes:` header
 - Version management unified to `VERSION` file only
 - Removed hardcoded `v0.2` from `show_help` and header comments
+- CI: `lint-and-test` 安装 `expect`/`iputils-ping`，修复 ShellCheck 警告
+  （`lib/tui.sh` 分离声明与赋值、`lib/yaml_parser.sh` 导出 `NODE_*` 全局变量）
+- `--validate` 在 `init_env` 自动创建配置之前先检测缺失文件并报告
+- `bin/sshm.sh` 在被 source（如测试）时不执行主逻辑（BASH_SOURCE 守卫）
+- `get_all_nodes` 对缺失配置文件返回空列表而非报错
+- tarball `install.sh` 卸载脚本 heredoc 加引号，避免 `set -u` 下未绑定变量 `_f` 报错
 
 ## [0.5.3] - 2026-01-10
 
