@@ -193,8 +193,6 @@ _render_list() {
         [[ $row -ge $visible_h ]] && break
 
         IFS='|' read -r original_id name group host port type tags <<<"$node"
-        local alive="●"
-        _ping_check "$host" && alive="${GREEN}●${RESET}" || alive="${RED}●${RESET}"
         local prefix="  "
         local cursor=" "
         if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then
@@ -217,7 +215,7 @@ _render_list() {
         fi
         local tag_display=""
         [[ -n "${tags:-}" ]] && tag_display=" ${CYAN}#${tags//,/ #}${RESET}"
-        _echo " ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${alive} ${group_display}  ${name_display}  ${host}:${port} ${auth_icon}${tag_display}"
+        _echo " ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${group_display}  ${name_display}  ${host}:${port} ${auth_icon}${tag_display}"
         ((display_id++)); ((idx++)); ((row++))
     done
 
