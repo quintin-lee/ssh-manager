@@ -53,8 +53,8 @@ _apply_theme() {
 _theme_swatch() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    printf "  \033[%sm●\033[%sm●\033[%sm●\033[%sm●\033[%sm●\033[%sm●\033[%sm %s %s${RESET}\n" \
-        "$r" "$g" "$y" "$b" "$m" "$c" "$w" "$BOLD" "${_}"
+    printf "  \033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██${RESET}\n" \
+        "$r" "$g" "$y" "$b" "$m" "$c" "$w"
 }
 
 _theme_preview_line() {
@@ -66,9 +66,9 @@ _theme_preview_line() {
     local blue=$'\033['"${b}"'m'
     local cyan=$'\033['"${c}"'m'
     local white=$'\033['"${w}"'m'
-    local bold=$'\033['"${bold}"';1m'
-    printf "  ${bold}${cyan}▶${RESET} ${yellow}%s${RESET} ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} ${blue}%s${RESET} ${cyan}%s${RESET}\n" \
-        " 1" "▸" "Default" "web01" "22" "[pass]" "🔒"
+    local dim=$'\033[2m'
+    printf "  ${dim}%s${RESET} ${yellow}%s${RESET}  ${green}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} %s${RESET}\n" \
+        " 1" "▸" "Default" "web01" "22" "🔒"
 }
 
 _sshm_theme_file() {
@@ -109,6 +109,20 @@ _theme_preview_line() {
     local blue=$'\033['"${b}"'m'
     local cyan=$'\033['"${c}"'m'
     local white=$'\033['"${w}"'m'
+    local dim=$'\033[2m'
+    printf "  ${dim}%s${RESET} ${yellow}%s${RESET}  ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} %s${RESET}\n" \
+        " 1" "▸" "Default" "web01" "22" "🔒"
+}
+
+_theme_preview_line() {
+    local name="$1"
+    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
+    local red=$'\033['"${r}"'m'
+    local green=$'\033['"${g}"'m'
+    local yellow=$'\033['"${y}"'m'
+    local blue=$'\033['"${b}"'m'
+    local cyan=$'\033['"${c}"'m'
+    local white=$'\033['"${w}"'m'
     local bold=$'\033['"${bold}"';1m'
     printf "  ${bold}${cyan}▶${RESET} ${yellow}%s${RESET} ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} ${cyan}%s${RESET}\n" \
         " 1" "▸" "Default" "web01" "22" "🔒"
@@ -121,17 +135,21 @@ _choose_theme() {
     while true; do
         printf '\033[H\033[J'
         echo ""
-        _echo "  ${BOLD}${CYAN}==== 选择主题 (实时预览) ====${RESET}\n"
+        _echo "  ${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
+        _echo "  ${BOLD}${CYAN}  选择主题${RESET}  ${DIM}实时预览${RESET}"
+        _echo "  ${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
+        echo ""
         for i in "${!_SSHM_THEME_NAMES[@]}"; do
             local tname="${_SSHM_THEME_NAMES[$i]}"
             local label="${_SSHM_THEMES[$tname]##* }"
             local arrow="  "
-            [[ $i -eq $sel ]] && arrow="${BOLD}${BLUE}>${RESET} "
-            _echo "${arrow}$(_theme_swatch "$tname") ${label}"
-            [[ $i -eq $sel ]] && _echo "      ${DIM}${CYAN}示例:${RESET}$(_theme_preview_line "$tname")"
+            [[ $i -eq $sel ]] && arrow="${BOLD}${BLUE}▸${RESET} "
+            _echo "${arrow}${BOLD}${label}${RESET} $(_theme_swatch "$tname")"
+            [[ $i -eq $sel ]] && _echo "     ${DIM}${CYAN}预览:${RESET}$(_theme_preview_line "$tname")"
         done
         echo ""
-        _echo "  ${BLUE}↑↓${RESET}选择(实时预览)  ${BLUE}Enter${RESET}确认  ${BLUE}q${RESET}取消"
+        _echo "  ${DIM}${CYAN}────────────────────────────────────────────────────────────${RESET}"
+        _echo "  ${BLUE}↑↓${RESET} 切换主题  ${BLUE}Enter${RESET} 确认  ${BLUE}q${RESET} 取消"
 
         local key
         key=$(_read_key)
