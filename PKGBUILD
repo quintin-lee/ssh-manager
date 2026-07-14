@@ -52,8 +52,12 @@ package() {
     cp "${startdir}/bin/sshm.sh" "${pkgdir}/usr/bin/sshm"
     chmod 755 "${pkgdir}/usr/bin/sshm"
 
-    cp "${startdir}/lib/yaml_parser.sh" "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
-    chmod 644 "${pkgdir}/usr/share/ssh-manager/yaml_parser.sh"
+    for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+        cp "${startdir}/lib/${_f}" "${pkgdir}/usr/share/ssh-manager/${_f}"
+        chmod 644 "${pkgdir}/usr/share/ssh-manager/${_f}"
+    done
+    cp "${startdir}/lib/ssh_connect.tcl" "${pkgdir}/usr/share/ssh-manager/ssh_connect.tcl"
+    chmod 644 "${pkgdir}/usr/share/ssh-manager/ssh_connect.tcl"
     cp "${startdir}/VERSION" "${pkgdir}/usr/share/ssh-manager/VERSION"
     chmod 644 "${pkgdir}/usr/share/ssh-manager/VERSION"
 

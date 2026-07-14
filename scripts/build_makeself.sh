@@ -28,7 +28,10 @@ mkdir -p "${PAYLOAD_DIR}/completions"
 
 cp "${PROJECT_ROOT}/bin/sshm.sh" "${PAYLOAD_DIR}/bin/sshm"
 cp "${PROJECT_ROOT}/conf/config.yaml" "${PAYLOAD_DIR}/conf/config.yaml"
-cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${PAYLOAD_DIR}/lib/yaml_parser.sh"
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+    cp "${PROJECT_ROOT}/lib/${_f}" "${PAYLOAD_DIR}/lib/${_f}"
+done
+cp "${PROJECT_ROOT}/lib/ssh_connect.tcl" "${PAYLOAD_DIR}/lib/ssh_connect.tcl"
 cp "${PROJECT_ROOT}/VERSION" "${PAYLOAD_DIR}/VERSION"
 cp "${PROJECT_ROOT}/completions/sshm.bash" "${PAYLOAD_DIR}/completions/sshm.bash"
 cp "${PROJECT_ROOT}/completions/_sshm" "${PAYLOAD_DIR}/completions/_sshm"
@@ -79,20 +82,34 @@ echo "Installing library..."
 INSTALL_LIB_DIR="/usr/local/share/ssh-manager"
 mkdir -p "${INSTALL_LIB_DIR}"
 chmod 755 "${INSTALL_LIB_DIR}" 2>/dev/null || true
-cp lib/yaml_parser.sh "${INSTALL_LIB_DIR}/yaml_parser.sh"
-chmod 644 "${INSTALL_LIB_DIR}/yaml_parser.sh"
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+    cp "lib/${_f}" "${INSTALL_LIB_DIR}/${_f}"
+    chmod 644 "${INSTALL_LIB_DIR}/${_f}"
+done
+cp lib/ssh_connect.tcl "${INSTALL_LIB_DIR}/ssh_connect.tcl"
+chmod 644 "${INSTALL_LIB_DIR}/ssh_connect.tcl"
 cp VERSION "${INSTALL_LIB_DIR}/VERSION"
 chmod 644 "${INSTALL_LIB_DIR}/VERSION"
 
 # Also install to /usr/share for compatibility with .deb lookups
 mkdir -p /usr/share/ssh-manager
 chmod 755 /usr/share/ssh-manager 2>/dev/null || true
-cp lib/yaml_parser.sh /usr/share/ssh-manager/yaml_parser.sh
-chmod 644 /usr/share/ssh-manager/yaml_parser.sh
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+    cp "lib/${_f}" /usr/share/ssh-manager/"${_f}"
+    chmod 644 /usr/share/ssh-manager/"${_f}"
+done
+cp lib/ssh_connect.tcl /usr/share/ssh-manager/ssh_connect.tcl
+chmod 644 /usr/share/ssh-manager/ssh_connect.tcl
 
 mkdir -p /usr/local/lib 2>/dev/null || true
 cp lib/yaml_parser.sh /usr/local/lib/yaml_parser.sh 2>/dev/null || true
 chmod 644 /usr/local/lib/yaml_parser.sh 2>/dev/null || true
+for _f in yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+    cp "lib/${_f}" /usr/local/lib/"${_f}" 2>/dev/null || true
+    chmod 644 /usr/local/lib/"${_f}" 2>/dev/null || true
+done
+cp lib/ssh_connect.tcl /usr/local/lib/ssh_connect.tcl 2>/dev/null || true
+chmod 644 /usr/local/lib/ssh_connect.tcl 2>/dev/null || true
 
 # Install completions
 echo "Installing shell completions..."
@@ -107,18 +124,21 @@ if [ -f completions/_sshm ]; then
     chmod 644 /usr/share/zsh/site-functions/_sshm
 fi
 
-# Verify library and version were installed correctly
-if [ ! -f "/usr/local/share/ssh-manager/yaml_parser.sh" ] && [ ! -f "/usr/share/ssh-manager/yaml_parser.sh" ]; then
-    echo "ERROR: Failed to install yaml_parser.sh"
-    ls -la /usr/local/share/ssh-manager/ 2>/dev/null || echo "  dir missing"
-    ls -la /usr/share/ssh-manager/ 2>/dev/null || echo "  dir missing"
-    exit 1
-fi
-if [ ! -f "/usr/local/share/ssh-manager/VERSION" ] && [ ! -f "/usr/share/ssh-manager/VERSION" ]; then
-    echo "ERROR: Failed to install VERSION"
-    exit 1
-fi
-echo "Library and VERSION verified OK"
+# Verify library files were installed correctly
+_verify_lib() {
+    local f="$1"
+    if [ ! -f "/usr/local/share/ssh-manager/${f}" ] && [ ! -f "/usr/share/ssh-manager/${f}" ]; then
+        echo "ERROR: Failed to install ${f}"
+        ls -la /usr/local/share/ssh-manager/ 2>/dev/null || true
+        ls -la /usr/share/ssh-manager/ 2>/dev/null || true
+        exit 1
+    fi
+}
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh ssh_connect.tcl; do
+    _verify_lib "${_f}"
+done
+_verify_lib "VERSION"
+echo "All library files and VERSION verified OK"
 
 # 2. Install Config
 echo "Installing configuration..."
@@ -152,10 +172,13 @@ if [ "\$(id -u)" -ne 0 ]; then
     exit 1
 fi
 rm -f ${INSTALL_BIN}
-rm -f ${INSTALL_LIB_DIR}/yaml_parser.sh
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh ssh_connect.tcl; do
+    rm -f "${INSTALL_LIB_DIR}/${_f}"
+    rm -f "/usr/share/ssh-manager/${_f}"
+done
 rm -f ${INSTALL_LIB_DIR}/VERSION
+rm -f /usr/share/ssh-manager/VERSION
 rmdir ${INSTALL_LIB_DIR} 2>/dev/null || true
-rm -f /usr/share/ssh-manager/yaml_parser.sh
 rmdir /usr/share/ssh-manager 2>/dev/null || true
 rm -f /usr/share/bash-completion/completions/sshm
 rm -f /usr/share/zsh/site-functions/_sshm

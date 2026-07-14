@@ -61,8 +61,13 @@ mkdir -p "${STAGING_DIR}/usr/share/zsh/site-functions"
 
 cp "${PROJECT_ROOT}/bin/sshm.sh" "${STAGING_DIR}/usr/bin/sshm"
 chmod 755 "${STAGING_DIR}/usr/bin/sshm"
-cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
-chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/yaml_parser.sh"
+# Copy all library modules
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+    cp "${PROJECT_ROOT}/lib/${_f}" "${STAGING_DIR}/usr/share/ssh-manager/${_f}"
+    chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/${_f}"
+done
+cp "${PROJECT_ROOT}/lib/ssh_connect.tcl" "${STAGING_DIR}/usr/share/ssh-manager/ssh_connect.tcl"
+chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/ssh_connect.tcl"
 cp "${PROJECT_ROOT}/VERSION" "${STAGING_DIR}/usr/share/ssh-manager/VERSION"
 chmod 644 "${STAGING_DIR}/usr/share/ssh-manager/VERSION"
 
@@ -145,6 +150,13 @@ find ${RPM_ROOT}/BUILD/${TAR_NAME}/usr/share/zsh -type f -exec cp {} %{buildroot
 %config(noreplace) /etc/ssh-manager/config.yaml
 /etc/ssh-manager/config.yaml.default
 /usr/share/ssh-manager/yaml_parser.sh
+/usr/share/ssh-manager/yaml_ops.sh
+/usr/share/ssh-manager/config.sh
+/usr/share/ssh-manager/util.sh
+/usr/share/ssh-manager/ssh.sh
+/usr/share/ssh-manager/node_cmd.sh
+/usr/share/ssh-manager/tui.sh
+/usr/share/ssh-manager/ssh_connect.tcl
 /usr/share/ssh-manager/VERSION
 /usr/share/bash-completion/completions/sshm
 /usr/share/zsh/site-functions/_sshm
@@ -179,7 +191,10 @@ build_tarball() {
     mkdir -p "${TAR_DIR}/completions"
     cp "${PROJECT_ROOT}/bin/sshm.sh" "${TAR_DIR}/bin/sshm.sh"
     cp "${PROJECT_ROOT}/conf/config.yaml" "${TAR_DIR}/conf/config.yaml"
-    cp "${PROJECT_ROOT}/lib/yaml_parser.sh" "${TAR_DIR}/lib/yaml_parser.sh"
+    for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh; do
+        cp "${PROJECT_ROOT}/lib/${_f}" "${TAR_DIR}/lib/${_f}"
+    done
+    cp "${PROJECT_ROOT}/lib/ssh_connect.tcl" "${TAR_DIR}/lib/ssh_connect.tcl"
     cp "${PROJECT_ROOT}/VERSION" "${TAR_DIR}/VERSION"
     cp "${PROJECT_ROOT}/completions/sshm.bash" "${TAR_DIR}/completions/sshm.bash" 2>/dev/null || true
     cp "${PROJECT_ROOT}/completions/_sshm" "${TAR_DIR}/completions/_sshm" 2>/dev/null || true

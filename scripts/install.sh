@@ -179,18 +179,29 @@ fi
 
 # 安装库文件
 log_info "安装库文件..."
-if [ -f "lib/yaml_parser.sh" ]; then
-    if cp "lib/yaml_parser.sh" "$LIB_PATH/yaml_parser.sh"; then
-        chmod 644 "$LIB_PATH/yaml_parser.sh"
-        log_success "库文件已安装到 $LIB_PATH/yaml_parser.sh"
-        cp VERSION "$LIB_PATH/VERSION" 2>/dev/null && chmod 644 "$LIB_PATH/VERSION" || true
+_all_lib_files=(yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh)
+_any_lib=0
+for _f in "${_all_lib_files[@]}"; do
+    if [ -f "lib/${_f}" ]; then
+        cp "lib/${_f}" "$LIB_PATH/${_f}"
+        chmod 644 "$LIB_PATH/${_f}"
+        log_success "库文件已安装到 $LIB_PATH/${_f}"
+        _any_lib=1
     else
-        log_error "复制库文件失败"
-        exit 1
+        log_warn "库文件 lib/${_f} 不存在，跳过"
     fi
-else
-    log_warn "库文件 lib/yaml_parser.sh 不存在，跳过"
+done
+# Install expect template
+if [ -f "lib/ssh_connect.tcl" ]; then
+    cp "lib/ssh_connect.tcl" "$LIB_PATH/ssh_connect.tcl"
+    chmod 644 "$LIB_PATH/ssh_connect.tcl"
+    log_success "expect 模板已安装到 $LIB_PATH/ssh_connect.tcl"
 fi
+cp VERSION "$LIB_PATH/VERSION" 2>/dev/null && chmod 644 "$LIB_PATH/VERSION" || true
+if [ "$_any_lib" -eq 0 ]; then
+    log_warn "没有找到任何库文件，跳过"
+fi
+unset _all_lib_files _any_lib _f
 
 # 安装 Shell 补全
 if [ -f "completions/sshm.bash" ]; then
@@ -332,11 +343,13 @@ else
 fi
 
 # 删除库文件
-if rm -f "$LIB_PATH/yaml_parser.sh" 2>/dev/null; then
-    log_success "已删除库文件"
-fi
+for _f in yaml_parser.sh yaml_ops.sh config.sh util.sh ssh.sh node_cmd.sh tui.sh ssh_connect.tcl; do
+    rm -f "$LIB_PATH/${_f}" 2>/dev/null
+done
+log_success "已删除库文件"
 rm -f "$LIB_PATH/VERSION" 2>/dev/null
 rmdir "$LIB_PATH" 2>/dev/null || true
+unset _f
 
 # 删除补全文件
 rm -f /usr/share/bash-completion/completions/sshm 2>/dev/null
