@@ -20,7 +20,30 @@ BLINK=$'\033[5m'
 REVERSE=$'\033[7m'
 RESET=$'\033[0m'
 
-declare -A _SSHM_THEMES
+# Return proper ANSI escape for a foreground color code.
+# Standard codes (30-37, 90-97) use direct \033[Nm format.
+# Other codes (256-color palette) need \033[38;5;Nm format.
+_fg() {
+    local c=$1
+    if (( (c >= 30 && c <= 37) || (c >= 90 && c <= 97) )); then
+        printf '\033[%sm' "$c"
+    else
+        printf '\033[38;5;%sm' "$c"
+    fi
+}
+
+# Return ANSI escape for foreground color + bold attribute.
+# Used for BOLD variable and bold-color text.
+_bold_fg() {
+    local c=$1
+    if (( (c >= 30 && c <= 37) || (c >= 90 && c <= 97) )); then
+        printf '\033[%s;1m' "$c"
+    else
+        printf '\033[38;5;%s;1m' "$c"
+    fi
+}
+
+declare -gA _SSHM_THEMES
 # Format: name="fg_red fg_green fg_yellow fg_blue fg_magenta fg_cyan fg_white bold_color label"
 _SSHM_THEMES[dark]="31 32 33 94 35 36 37 37 深色"
 _SSHM_THEMES[light]="91 92 93 34 95 96 97 97 亮色"
@@ -40,35 +63,47 @@ _SSHM_THEME_IDX=0
 _apply_theme() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    RED=$'\033['"${r}"'m'
-    GREEN=$'\033['"${g}"'m'
-    YELLOW=$'\033['"${y}"'m'
-    BLUE=$'\033['"${b}"'m'
-    MAGENTA=$'\033['"${m}"'m'
-    CYAN=$'\033['"${c}"'m'
-    WHITE=$'\033['"${w}"'m'
-    BOLD=$'\033['"${bold}"';1m'
+    RED=$(_fg "$r")
+    GREEN=$(_fg "$g")
+    YELLOW=$(_fg "$y")
+    BLUE=$(_fg "$b")
+    MAGENTA=$(_fg "$m")
+    CYAN=$(_fg "$c")
+    WHITE=$(_fg "$w")
+    BOLD=$(_bold_fg "$bold")
 }
 
-_theme_swatch() {
+_theme_color_bar() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    printf "${BOLD}${YELLOW}%s${RESET} \033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm${RESET}" \
-        "$_" "$r" "$g" "$y" "$b" "$m" "$c" "$w"
+    printf "%s██%s██%s██%s██%s██%s██%s██${RESET}" \
+        "$(_fg "$r")" "$(_fg "$g")" "$(_fg "$y")" "$(_fg "$b")" \
+        "$(_fg "$m")" "$(_fg "$c")" "$(_fg "$w")"
 }
 
-_theme_preview_line() {
+_theme_preview() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    local red=$'\033['"${r}"'m'
-    local green=$'\033['"${g}"'m'
-    local yellow=$'\033['"${y}"'m'
-    local blue=$'\033['"${b}"'m'
-    local cyan=$'\033['"${c}"'m'
-    local white=$'\033['"${w}"'m'
+    local red=$(_fg "$r")
+    local green=$(_fg "$g")
+    local yellow=$(_fg "$y")
+    local blue=$(_fg "$b")
+    local cyan=$(_fg "$c")
+    local white=$(_fg "$w")
     local dim=$'\033[2m'
-    printf "  ${dim}%s${RESET} ${yellow}%s${RESET}  ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} %s${RESET}\n" \
-        " 1" "▸" "Default" "web01" "22" "🔒"
+    local bold_c=$(_fg "$bold")
+
+    echo ""
+    printf "  ${BOLD}${_}${RESET} 主题预览\n"
+    printf "  ${DIM}────────────────────────────────────────────────────${RESET}\n"
+    echo ""
+    printf "  ${dim}1${RESET}  ${green}▸${RESET}  ${bold_c}web01${RESET}    ${white}22${RESET}    ${green}已连接${RESET}\n"
+    printf "  ${dim}2${RESET}     ${bold_c}db01${RESET}     ${white}3306${RESET}  ${yellow}等待中${RESET}\n"
+    printf "  ${dim}3${RESET}     ${bold_c}api01${RESET}    ${white}443${RESET}   ${red}离线${RESET}\n"
+    echo ""
+    printf "  ${cyan}主机: ${white}web01${RESET}    ${cyan}端口: ${white}22${RESET}    ${cyan}用户: ${white}root${RESET}\n"
+    echo ""
+    printf "  ${blue}[连接]${RESET}  ${green}[编辑]${RESET}  ${red}[删除]${RESET}\n"
 }
 
 _sshm_theme_file() {
@@ -102,34 +137,99 @@ _sshm_save_theme() {
 
 _choose_theme() {
     local sel=0
+    local current="${_SSHM_THEME_IDX}"
     local orig_r="$RED" orig_g="$GREEN" orig_y="$YELLOW" orig_b="$BLUE" orig_m="$MAGENTA" orig_c="$CYAN" orig_w="$WHITE" orig_bold="$BOLD"
     _apply_theme "${_SSHM_THEME_NAMES[$sel]}"
+
+    local max_visible=12
+    local total=${#_SSHM_THEME_NAMES[@]}
+    local sep=""
+    for ((j=0; j<54; j++)); do sep+="─"; done
+
     while true; do
         printf '\033[H\033[J'
         echo ""
-        _echo "  ${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
-        _echo "  ${BOLD}${CYAN}  选择主题${RESET}  ${DIM}实时预览${RESET}"
-        _echo "  ${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
-        echo ""
-        for i in "${!_SSHM_THEME_NAMES[@]}"; do
-            local tname="${_SSHM_THEME_NAMES[$i]}"
-            local label="${_SSHM_THEMES[$tname]##* }"
-            local arrow="  "
-            [[ $i -eq $sel ]] && arrow="${BOLD}${BLUE}▸${RESET} "
-            _echo "${arrow}${BOLD}${label}${RESET} $(_theme_swatch "$tname")"
-            [[ $i -eq $sel ]] && _echo "     ${DIM}${CYAN}预览:${RESET}$(_theme_preview_line "$tname")"
-        done
-        echo ""
-        _echo "  ${DIM}${CYAN}────────────────────────────────────────────────────────────${RESET}"
-        _echo "  ${BLUE}↑↓${RESET} 切换主题  ${BLUE}Enter${RESET} 确认  ${BLUE}q${RESET} 取消"
 
+        # Header
+        _echo "  ${BOLD}${CYAN}════════════════════════════════════════════════════${RESET}"
+        _echo "  ${BOLD}${YELLOW}主题选择${RESET}  ${DIM}↑↓ 切换  Enter 确认  q 取消${RESET}"
+        _echo "  ${BOLD}${CYAN}════════════════════════════════════════════════════${RESET}"
+        echo ""
+
+        # Theme list with scroll
+        local start=$((sel - max_visible / 2))
+        ((start < 0)) && start=0
+        ((start > total - max_visible)) && start=$((total - max_visible))
+        ((start < 0)) && start=0
+
+        for ((i=0; i<max_visible && i<total; i++)); do
+            local idx=$((start + i))
+            local tname="${_SSHM_THEME_NAMES[$idx]}"
+            local label="${_SSHM_THEMES[$tname]##* }"
+            local bar
+            bar=$(_theme_color_bar "$tname")
+
+            local cur_mark=" "
+            local sel_mark=" "
+            [[ $idx -eq $current ]] && cur_mark="${GREEN}●${RESET}"
+            [[ $idx -eq $sel ]] && sel_mark="${BLUE}▶${RESET}"
+
+            if [[ $idx -eq $sel ]]; then
+                printf "  %b%b ${BOLD}%s${RESET}  %b\n" "$cur_mark" "$sel_mark" "$label" "$bar"
+            else
+                printf "  %b%b %-12b %b\n" "$cur_mark" "$sel_mark" "$label" "$bar"
+            fi
+        done
+
+        # Scroll indicators
+        if [[ $start -gt 0 ]]; then
+            _echo "  ${DIM}${CYAN}▲ 还有 ${start} 项${RESET}"
+        fi
+        if [[ $((start + max_visible)) -lt $total ]]; then
+            _echo "  ${DIM}${CYAN}▼ 还有 $(($total - start - max_visible)) 项${RESET}"
+        fi
+
+        echo ""
+        _echo "  ${DIM}${sep}${RESET}"
+
+        # Preview section
+        _theme_preview "${_SSHM_THEME_NAMES[$sel]}"
+
+        echo ""
+        _echo "  ${DIM}${sep}${RESET}"
+
+        # Footer
+        local current_name="${_SSHM_THEME_NAMES[$current]}"
+        local current_label="${_SSHM_THEMES[$current_name]##* }"
+        _echo "  ${DIM}当前: ${BOLD}${current_label}${RESET}  $(_theme_color_bar "$current_name")"
+
+        # Handle input
         local key
         key=$(_read_key)
         case "$key" in
-            UP)    ((sel > 0)) && ((sel--)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
-            DOWN)  ((sel < ${#_SSHM_THEME_NAMES[@]} - 1)) && ((sel++)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
-            ENTER) _sshm_save_theme; return ;;
-            q|Q)   RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"; MAGENTA="$orig_m"; CYAN="$orig_c"; WHITE="$orig_w"; BOLD="$orig_bold"; return ;;
+            UP)
+                if ((sel > 0)); then
+                    ((sel--))
+                    _apply_theme "${_SSHM_THEME_NAMES[$sel]}"
+                fi
+                ;;
+            DOWN)
+                if ((sel < total - 1)); then
+                    ((sel++))
+                    _apply_theme "${_SSHM_THEME_NAMES[$sel]}"
+                fi
+                ;;
+            ENTER)
+                _SSHM_THEME_IDX=$sel
+                _sshm_save_theme
+                return
+                ;;
+            q|Q)
+                RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"
+                MAGENTA="$orig_m"; CYAN="$orig_c"; WHITE="$orig_w"; BOLD="$orig_bold"
+                _apply_theme "${_SSHM_THEME_NAMES[$current]}"
+                return
+                ;;
         esac
     done
 }
