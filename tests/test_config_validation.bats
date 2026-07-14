@@ -4,6 +4,7 @@ load test_helper
 
 setup() {
     TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+    SSH_MANAGER_SCRIPT="${TEST_DIR}/../bin/sshm.sh"
     WORK_DIR="${BATS_TMPDIR}/sshm-test-$$"
     mkdir -p "$WORK_DIR"
 }

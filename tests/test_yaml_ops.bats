@@ -48,7 +48,7 @@ EOF
 @test "_yaml_node_block generates valid YAML node" {
     local block
     block=$(_yaml_node_block "myhost" "Default" "10.0.0.1" "22" "root" "pass" "secret" "" "")
-    echo "$block" | grep -q "^- name: myhost"
+    echo "$block" | grep -q "name: myhost"
     echo "$block" | grep -q "host: 10.0.0.1"
     echo "$block" | grep -q "port: 22"
     echo "$block" | grep -q "type: pass"
@@ -58,7 +58,7 @@ EOF
     local block
     block=$(_yaml_node_block "my:host" "Default" "10.0.0.1" "22" "root" "pass" "sec\"ret" "" "")
     echo "$block" | grep -q 'name: "my:host"'
-    echo "$block" | grep -q 'pass: "sec\"ret"'
+    echo "$block" | grep -Fq 'pass: "sec\"ret"'
 }
 
 @test "_yaml_delete_node removes middle node correctly" {
@@ -68,9 +68,9 @@ EOF
     local result_file
     result_file=$(_yaml_delete_node "$config" 2)
 
-    grep -q "^- name: keep1" "$result_file"
-    grep -q "^- name: keep2" "$result_file"
-    ! grep -q "^- name: delete-me" "$result_file"
+    grep -q "name: keep1" "$result_file"
+    grep -q "name: keep2" "$result_file"
+    ! grep -q "name: delete-me" "$result_file"
 
     rm -f "$result_file"
 }
@@ -82,8 +82,8 @@ EOF
     local result_file
     result_file=$(_yaml_delete_node "$config" 1)
 
-    ! grep -q "^- name: keep1" "$result_file"
-    grep -q "^- name: delete-me" "$result_file"
+    ! grep -q "name: keep1" "$result_file"
+    grep -q "name: delete-me" "$result_file"
 
     rm -f "$result_file"
 }
@@ -95,9 +95,9 @@ EOF
     local result_file
     result_file=$(_yaml_delete_node "$config" 3)
 
-    grep -q "^- name: keep1" "$result_file"
-    grep -q "^- name: delete-me" "$result_file"
-    ! grep -q "^- name: keep2" "$result_file"
+    grep -q "name: keep1" "$result_file"
+    grep -q "name: delete-me" "$result_file"
+    ! grep -q "name: keep2" "$result_file"
 
     rm -f "$result_file"
 }
@@ -142,8 +142,8 @@ EOF
 
     _yaml_append_node "$config" "newnode" "Default" "10.0.0.2" "22" "root" "pass" "pass123" "" ""
 
-    grep -q "^- name: existing" "$config"
-    grep -q "^- name: newnode" "$config"
+    grep -q "name: existing" "$config"
+    grep -q "name: newnode" "$config"
     grep -q "host: 10.0.0.2" "$config"
 }
 

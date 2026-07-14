@@ -92,11 +92,11 @@ while [[ $# -gt 0 ]]; do
             fi
             ;;
         --validate)
-            init_env
             if [[ ! -f "$_SSHM_CONF" ]]; then
                 _echo "${RED}配置文件不存在: $_SSHM_CONF${RESET}"
                 exit 1
             fi
+            init_env
             if [[ ! -r "$_SSHM_CONF" ]]; then
                 _echo "${RED}配置文件不可读: $_SSHM_CONF${RESET}"
                 exit 1
@@ -232,7 +232,10 @@ done
 init_env
 _sshm_load_theme
 
-if [[ $# -gt 0 ]]; then
+# Only run the interactive/main path when executed directly, not when
+# sourced (e.g. by the test suite), to avoid treating the caller's
+# positional arguments as a node keyword.
+if [[ "${BASH_SOURCE[0]}" == "$0" && $# -gt 0 ]]; then
     keyword="${1,,}"
     shift
     get_all_nodes "$_SSHM_CONF" "$keyword" ""
@@ -255,4 +258,6 @@ if [[ $# -gt 0 ]]; then
     exit 0
 fi
 
-_interactive_list
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    _interactive_list
+fi
