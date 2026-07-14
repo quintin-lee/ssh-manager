@@ -178,7 +178,7 @@ jobs:
             exit 0
           fi
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
-            pacman -Sy --noconfirm expect
+            pacman -Sy --noconfirm expect iputils
             pacman -U --noconfirm ssh-manager-*.pkg.tar.zst
             sshm --version && sshm --help
             printf "nodes:\n  - name: test\n    host: 127.0.0.1\n    user: root\n" > /tmp/test-config.yaml

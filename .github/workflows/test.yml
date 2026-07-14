@@ -72,7 +72,17 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq || true
-          sudo apt-get install -y -qq rpm makeself expect
+          # Install host deps separately so a missing 'makeself' in apt
+          # cannot abort the whole step and leave 'expect' uninstalled.
+          sudo apt-get install -y -qq rpm expect iputils-ping
+          # 'makeself' is not always available via apt; provide it from source
+          # (needed to build the .run installer in the 'run' verify step).
+          if ! command -v makeself >/dev/null 2>&1; then
+            git clone --depth 1 https://github.com/megastep/makeself.git /tmp/makeself
+            sudo cp /tmp/makeself/makeself.sh /usr/local/bin/makeself
+            sudo cp /tmp/makeself/makeself-header.sh /usr/local/bin/makeself-header.sh
+            sudo chmod +x /usr/local/bin/makeself
+          fi
 
       - name: Verify .deb
         if: matrix.format == 'deb'
@@ -142,7 +152,7 @@ jobs:
         if: matrix.format == 'arch'
         run: |
           docker run --rm -v "$PWD":/workspace -w /workspace archlinux:latest bash -c '
-            pacman -Sy --noconfirm base-devel expect sudo
+            pacman -Sy --noconfirm base-devel expect sudo iputils
             useradd -m build -s /bin/bash
             echo "build ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
             chown -R build:build .
