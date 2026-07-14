@@ -284,7 +284,7 @@ fi
 
 # 创建卸载脚本
 log_info "创建卸载脚本..."
-if cat > /usr/local/bin/ssh-manager-uninstall << EOF
+if cat > /usr/local/bin/ssh-manager-uninstall << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
