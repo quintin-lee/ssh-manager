@@ -49,8 +49,8 @@ _source_lib tui
 
 _require_bash4
 
-for arg in "$@"; do
-    case "$arg" in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --help|-h)
             echo "SSH Manager v${VERSION} - SSH connection management tool"
             echo ""
@@ -201,9 +201,11 @@ NODE
                     first=1
                     for node in "${NODES_ARRAY[@]}"; do
                         IFS='|' read -r id name group host port type tags <<<"$node"
-                        [[ $first -eq 0 ]] && echo ","
+                        if [[ $first -eq 0 ]]; then
+                            printf ','
+                        fi
                         first=0
-                        printf '  {"id":%d,"name":"%s","group":"%s","host":"%s","port":%s,"type":"%s","tags":"%s"}' \
+                        printf '\n  {"id":%d,"name":"%s","group":"%s","host":"%s","port":%s,"type":"%s","tags":"%s"}' \
                             "$id" "$name" "$group" "$host" "$port" "$type" "${tags:-}"
                     done
                     echo ""

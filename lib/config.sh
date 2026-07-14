@@ -2,7 +2,9 @@
 
 _SSHM_CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 VERSION=$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat "/usr/local/share/ssh-manager/VERSION" 2>/dev/null || cat "/usr/share/ssh-manager/VERSION" 2>/dev/null || true)
 if [[ -z "$VERSION" ]]; then
     _die "Error: VERSION file not found. Checked: ${SCRIPT_DIR}/../VERSION, /usr/local/share/ssh-manager/VERSION, /usr/share/ssh-manager/VERSION"
@@ -23,7 +25,7 @@ _resolve_config() {
         mkdir -p "$user_conf_dir" 2>/dev/null || true
     fi
 
-    if [[ -f "$user_conf" ]]; then
+    if [[ -f "$user_conf" ]] && [[ -z "${SSH_MANAGER_CONFIG:-}" ]]; then
         _SSHM_CONF="$user_conf"
     fi
 

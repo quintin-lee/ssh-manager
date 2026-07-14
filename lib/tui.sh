@@ -1,47 +1,71 @@
 #!/usr/bin/env bash
 
+# Base colors
 RED=$'\033[31m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 BLUE=$'\033[34m'
+MAGENTA=$'\033[35m'
 CYAN=$'\033[36m'
+WHITE=$'\033[37m'
+
+# Style modifiers
+BOLD=$'\033[1m'
+DIM=$'\033[2m'
+# shellcheck disable=SC2034
+UNDERLINE=$'\033[4m'
+# shellcheck disable=SC2034
+BLINK=$'\033[5m'
+# shellcheck disable=SC2034
+REVERSE=$'\033[7m'
 RESET=$'\033[0m'
 
 declare -A _SSHM_THEMES
-_SSHM_THEMES[dark]="31 32 33 34 36 深色"
-_SSHM_THEMES[light]="91 92 93 94 96 亮色"
-_SSHM_THEMES[ocean]="36 34 37 36 34 海洋"
-_SSHM_THEMES[sunset]="31 33 35 33 31 日落"
-_SSHM_THEMES[forest]="32 36 33 34 32 森林"
-_SSHM_THEME_NAMES=(dark light ocean sunset forest)
+# Format: name="fg_red fg_green fg_yellow fg_blue fg_magenta fg_cyan fg_white bold_color label"
+_SSHM_THEMES[dark]="31 32 33 94 35 36 37 37 深色"
+_SSHM_THEMES[light]="91 92 93 34 95 96 97 97 亮色"
+_SSHM_THEMES[ocean]="36 34 37 33 36 34 37 36 海洋"
+_SSHM_THEMES[sunset]="31 33 35 33 31 33 37 33 日落"
+_SSHM_THEMES[forest]="32 36 33 34 32 36 37 32 森林"
+_SSHM_THEMES[monokai]="208 151 228 81 189 117 255 228 Monokai"
+_SSHM_THEMES[nord]="94 76 93 80 129 108 218 218 Nord"
+_SSHM_THEME_NAMES=(dark light ocean sunset forest monokai nord)
 _SSHM_THEME_IDX=0
 
 _apply_theme() {
     local name="$1"
-    IFS=' ' read -r r g y b c _ <<<"${_SSHM_THEMES[$name]}"
+    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
     RED=$'\033['"${r}"'m'
     GREEN=$'\033['"${g}"'m'
     YELLOW=$'\033['"${y}"'m'
     BLUE=$'\033['"${b}"'m'
+    MAGENTA=$'\033['"${m}"'m'
     CYAN=$'\033['"${c}"'m'
+    WHITE=$'\033['"${w}"'m'
+    BOLD=$'\033['"${bold}"';1m'
+}
+
+_theme_swatch() {
+    local name="$1"
+    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
+    printf "  \033[%sm●\033[%sm●\033[%sm●\033[%sm●\033[%sm●\033[%sm●\033[%sm %s %s${RESET}\n" \
+        "$r" "$g" "$y" "$b" "$m" "$c" "$w" "$BOLD" "${_}"
 }
 
 _choose_theme() {
-    local sel=0 orig_r="$RED" orig_g="$GREEN" orig_y="$YELLOW" orig_b="$BLUE" orig_c="$CYAN"
+    local sel=0
+    local orig_r="$RED" orig_g="$GREEN" orig_y="$YELLOW" orig_b="$BLUE" orig_m="$MAGENTA" orig_c="$CYAN" orig_w="$WHITE" orig_bold="$BOLD"
     _apply_theme "${_SSHM_THEME_NAMES[$sel]}"
     while true; do
         printf '\033[H\033[J'
         echo ""
-        _echo "  ${CYAN}==== 选择主题 (实时预览) ====${RESET}\n"
+        _echo "  ${BOLD}${CYAN}==== 选择主题 (实时预览) ====${RESET}\n"
         for i in "${!_SSHM_THEME_NAMES[@]}"; do
             local tname="${_SSHM_THEME_NAMES[$i]}"
             local label="${_SSHM_THEMES[$tname]##* }"
             local arrow="  "
-            [[ $i -eq $sel ]] && arrow="${BLUE}>${RESET} "
-            local r g y b c
-            IFS=' ' read -r r g y b c _ <<<"${_SSHM_THEMES[$tname]}"
-            local sample="\033[${r}m●\033[${g}m●\033[${y}m●\033[${b}m●\033[${c}m●${RESET}"
-            _echo "${arrow}${sample}  ${label}"
+            [[ $i -eq $sel ]] && arrow="${BOLD}${BLUE}>${RESET} "
+            _echo "${arrow}$(_theme_swatch "$tname") ${label}"
         done
         echo ""
         _echo "  ${BLUE}↑↓${RESET}选择(实时预览)  ${BLUE}Enter${RESET}确认  ${BLUE}q${RESET}取消"
@@ -52,7 +76,7 @@ _choose_theme() {
             UP)    ((sel > 0)) && ((sel--)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
             DOWN)  ((sel < ${#_SSHM_THEME_NAMES[@]} - 1)) && ((sel++)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
             ENTER) return ;;
-            q|Q)   RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"; CYAN="$orig_c"; return ;;
+            q|Q)   RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"; MAGENTA="$orig_m"; CYAN="$orig_c"; WHITE="$orig_w"; BOLD="$orig_bold"; return ;;
         esac
     done
 }
@@ -75,13 +99,20 @@ _read_key() {
     fi
 }
 
+_auth_icon() {
+    [[ "$1" == "key" ]] && echo "🔑" || echo "🔒"
+}
+
+_auth_label() {
+    [[ "$1" == "key" ]] && echo "密钥" || echo "密码"
+}
+
 _render_list() {
     local selected_idx="$1"
     local filter_key="${2,,}"
     local highlight="${3:-0}"
-    local term_h term_w visible_h
+    local term_h visible_h
     term_h=$(tput lines 2>/dev/null || echo 24)
-    term_w=$(_term_width)
     visible_h=$((term_h - 4))
 
     local current_mtime
@@ -124,11 +155,10 @@ _render_list() {
         fi
     fi
 
-    local disp_nodes=() found=0
+    local disp_nodes=()
     for node in "${NODES_ARRAY[@]}"; do
         IFS='|' read -r original_id name group host port type tags <<<"$node"
         disp_nodes+=("$original_id|$name|$group|$host|$port|$type|${tags:-}")
-        found=1
     done
     _SSHM_RENDERED_NODES=("${disp_nodes[@]}")
 
@@ -137,16 +167,25 @@ _render_list() {
     if [[ $total -gt 0 && $selected_idx -ge $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _SSHM_SCROLL_OFFSET=$((selected_idx - visible_h + 1)); fi
     [[ ${_SSHM_SCROLL_OFFSET:-0} -lt 0 ]] && _SSHM_SCROLL_OFFSET=0
 
-    local name_w=$(( term_w > 100 ? 24 : 16 ))
-    local host_w=$(( term_w > 100 ? 26 : 21 ))
-    local FMT="%-6s | %-4s | %-12s | %-${name_w}s | %-${host_w}s | %-5s"
-
     printf '\033[H\033[J'
-    local hdr="SSH Manager v${VERSION}"
-    [[ -n "$filter_key" ]] && hdr="${hdr}  过滤: ${filter_key} (ESC清除)"
+    local hdr="${BOLD}${CYAN}SSH Manager v${VERSION}${RESET}"
+    [[ -n "$filter_key" ]] && hdr="${hdr}  ${DIM}${CYAN}过滤: ${filter_key}${RESET} ${DIM}(ESC清除)${RESET}"
     local sort_l="组"; case "${_SSHM_SORT_MODE:-group}" in name) sort_l="名" ;; status) sort_l="状态" ;; esac
-    _echo "${CYAN}═══ ${hdr}  排序:${sort_l} ═══${RESET}"
-    _echo "${CYAN}$(printf "$FMT" "Sel/St" "ID" "Group" "Name" "Host:Port" "Auth")${RESET}"
+    _echo "${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
+    _echo " ${hdr}"
+    _echo " ${DIM}${CYAN}排序: ${sort_l} | 主题: ${_SSHM_THEME_NAMES[$((_SSHM_THEME_IDX))]}${RESET}"
+    _echo "${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
+
+    if [[ $total -eq 0 ]]; then
+        echo ""
+        _echo "  ${YELLOW}${BOLD}  暂无节点${RESET}"
+        _echo "  ${DIM}  请按 ${RESET}${BOLD}a${RESET}${DIM} 添加新节点${RESET}"
+        [[ -n "$filter_key" ]] && _echo "  ${DIM}  或按 ${RESET}${BOLD}ESC${RESET}${DIM} 清除过滤条件${RESET}"
+        echo ""
+        _echo "${BOLD}${CYAN}────────────────────────────────────────────────────────────${RESET}"
+        _echo " ${DIM}sshm v${VERSION} | 按 ${BOLD}h${RESET}${DIM} 查看帮助 | ${BOLD}q${RESET}${DIM} 退出${RESET}"
+        return
+    fi
 
     local display_id=1 idx=0 row=0
     for node in "${disp_nodes[@]}"; do
@@ -156,60 +195,67 @@ _render_list() {
         IFS='|' read -r original_id name group host port type tags <<<"$node"
         local alive="●"
         _ping_check "$host" && alive="${GREEN}●${RESET}" || alive="${RED}●${RESET}"
-        local st="  ${alive}   "
-        if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then st="${BLUE}>${RESET} ${alive}   "; fi
-        if [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]]; then st="${RED}>${RESET} ${alive}   "; fi
-        local id_str; id_str=$(printf "%-4d" $display_id); id_str="${GREEN}${id_str}${RESET}"
-        local disp_name="$name"
+        local prefix="  "
+        local cursor=" "
+        if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then
+            prefix="${BOLD}${BLUE}▶${RESET}"
+            cursor="${BOLD}${BLUE}▸${RESET}"
+        elif [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]]; then
+            prefix="${BOLD}${RED}▶${RESET}"
+            cursor="${BOLD}${RED}▸${RESET}"
+        fi
+        local auth_icon
+        auth_icon=$(_auth_icon "$type")
+        local id_str
+        id_str=$(printf "%2d" $display_id)
+        local group_display="$group"
+        [[ -z "$group_display" ]] && group_display="Default"
+        local name_display="$name"
         if [[ -n "$filter_key" ]]; then
             local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
-            [[ "$hl_name" != "$name" ]] && disp_name="$hl_name"
+            [[ "$hl_name" != "$name" ]] && name_display="$hl_name"
         fi
-        local disp_tags="${tags//\"/}"
-        disp_tags="${disp_tags//,/ }"
-        _echo "$(printf "$FMT" "$st" "$id_str" "$group" "$disp_name" "$host:$port" "$type")${disp_tags:+ ${CYAN}[${disp_tags}]${RESET}}"
+        local tag_display=""
+        [[ -n "${tags:-}" ]] && tag_display=" ${CYAN}#${tags//,/ #}${RESET}"
+        _echo " ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${alive} ${group_display}  ${name_display}  ${host}:${port} ${auth_icon}${tag_display}"
         ((display_id++)); ((idx++)); ((row++))
     done
 
-    if [[ $found -eq 0 ]]; then
-        local empty_msg="暂无节点，请先添加 (按 a)"
-        [[ -n "$filter_key" ]] && empty_msg="无匹配 [${filter_key}]"
-        echo ""
-        _echo "${YELLOW}  ${empty_msg}${RESET}"
-        echo ""
-    fi
-
-    if [[ ${_SSHM_SCROLL_OFFSET:-0} -gt 0 ]]; then _echo "${YELLOW}  ▲ 上方还有节点${RESET}"; fi
-    if [[ $total -gt $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _echo "${YELLOW}  ▼ 下方还有节点 ($((total - _SSHM_SCROLL_OFFSET - visible_h)))${RESET}"; fi
+    if [[ ${_SSHM_SCROLL_OFFSET:-0} -gt 0 ]]; then _echo "  ${DIM}${CYAN}▲${RESET}"; fi
+    if [[ $total -gt $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _echo "  ${DIM}${CYAN}▼ 还有 $((total - _SSHM_SCROLL_OFFSET - visible_h)) 项${RESET}"; fi
 
     echo ""
-    local mode_hint=""; [[ "$highlight" -eq 2 ]] && mode_hint="${RED}[删除]${RESET} "
+    local mode_hint=""
+    [[ "$highlight" -eq 2 ]] && mode_hint="${BOLD}${RED}[删除模式]${RESET} "
     local sel_info=""
     if [[ $total -gt 0 && $selected_idx -lt $total ]]; then
         local sn sh; sn=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f2); sh=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f4)
-        sel_info="${BLUE}${sn}${RESET}@${GREEN}${sh}${RESET} "
+        sel_info="${BOLD}${BLUE}${sn}${RESET}@${GREEN}${sh}${RESET} "
     fi
-    _echo "${CYAN}───${RESET} ${mode_hint}${total}个 ${sel_info}${CYAN}───${RESET}"
-    _echo "↑↓选 1-9快连 Enter连 e编 p预览 s排 u撤删 a加 d删 x导出 t主题 q退"
+    _echo " ${mode_hint}${total}个节点 ${sel_info}${DIM}| 1-9直连 Enter连接 e编辑 p预览 s排序 u撤销 d删除 x导出 i导入 t主题 h帮助 q退出${RESET}"
 }
 
 _preview_node() {
     local target_node="$1"
-    IFS='|' read -r id name group host port type <<<"$target_node"
+    IFS='|' read -r id name group host port type tags <<<"$target_node"
     printf '\033[H\033[J'
-    _echo "\n${CYAN}==== 节点详情 ====${RESET}\n"
-    _echo "  名称: ${YELLOW}${name}${RESET}"
-    _echo "  分组: ${YELLOW}${group}${RESET}"
-    _echo "  主机: ${GREEN}${host}${RESET}"
-    _echo "  端口: ${GREEN}${port}${RESET}"
-    _echo "  用户: ${GREEN}${type}${RESET}"
-    _echo "  认证: ${YELLOW}$([[ "$type" == "key" ]] && echo "密钥" || echo "密码")${RESET}"
+    echo ""
+    _echo "  ${BOLD}${CYAN}节点详情${RESET}"
+    _echo "  ${DIM}${CYAN}────────────────────────────────────────────────────────────${RESET}"
+    _echo ""
+    _echo "  ${BOLD}名称:${RESET}  ${YELLOW}${name}${RESET}"
+    _echo "  ${BOLD}分组:${RESET}  ${group:-Default}"
+    _echo "  ${BOLD}主机:${RESET}  ${GREEN}${host}${RESET}"
+    _echo "  ${BOLD}端口:${RESET}  ${GREEN}${port}${RESET}"
+    _echo "  ${BOLD}用户:${RESET}  ${name}"
+    _echo "  ${BOLD}认证:${RESET}  $(_auth_label "$type") $(_auth_icon "$type")"
+    [[ -n "${tags:-}" ]] && _echo "  ${BOLD}标签:${RESET}  ${CYAN}#${tags//,/ #}${RESET}"
     echo ""
     local alive="无法检测"
     _ping_check "$host" && alive="${GREEN}可达${RESET}" || alive="${RED}不可达${RESET}"
-    _echo "  状态: ${alive}"
+    _echo "  ${BOLD}状态:${RESET}  ${alive}"
     echo ""
-    _echo "  ${BLUE}Enter${RESET}=连接  ${BLUE}e${RESET}=编辑  其他键=返回"
+    _echo "  ${DIM}${BLUE}Enter${RESET} 连接   ${BLUE}e${RESET} 编辑   ${DIM}其他键返回${RESET}"
     local key
     key=$(_read_key)
     case "$key" in
@@ -258,10 +304,10 @@ _interactive_list() {
                     conn_host=$(echo "$target_node" | cut -d'|' -f4)
                     _record_connection "$conn_name" "$conn_host"
                     printf '\033[H\033[J'
-                    _echo "\n\n  ${BLUE}╔══════════════════════════════╗${RESET}"
-                    _echo "  ${BLUE}║${RESET}  ${YELLOW}连接中: ${conn_name}${RESET}"
+                    _echo "\n  ${BLUE}╔══════════════════════════════════════════════════════╗${RESET}"
+                    _echo "  ${BLUE}║${RESET}  ${YELLOW}${BOLD}连接中:${RESET} ${conn_name}"
                     _echo "  ${BLUE}║${RESET}  ${GREEN}${conn_host}${RESET}"
-                    _echo "  ${BLUE}╚══════════════════════════════╝${RESET}"
+                    _echo "  ${BLUE}╚══════════════════════════════════════════════════════╝${RESET}"
                     echo ""
                     ssh_connect "$original_id"
                     local conn_status=$?
@@ -308,17 +354,19 @@ _interactive_list() {
         r|R)
             if [[ -f "$_SSHM_HISTORY_FILE" ]]; then
     printf '\033[H\033[J'
-                _echo "${CYAN}==== 最近连接 ====${RESET}"
+                _echo "  ${BOLD}${CYAN}最近连接${RESET}"
+                _echo "  ${DIM}${CYAN}────────────────────────────────────────────────────────────${RESET}"
                 echo ""
                 local i=1
                 while IFS='|' read -r name host ts; do
                     local dt
                     dt=$(date -d "@$ts" '+%m-%d %H:%M' 2>/dev/null || date -r "$ts" '+%m-%d %H:%M' 2>/dev/null || echo "---")
-                    printf "  %2d. %-16s %-22s %s\n" "$i" "$name" "$host" "$dt"
+                    printf "  ${YELLOW}%2d.${RESET} %-16s %-22s %s\n" "$i" "$name" "$host" "$dt"
                     ((i++))
                 done < <(_get_recent)
                 echo ""
-                read -n 1 -r -p "按任意键返回..." _
+                _echo "  ${DIM}按任意键返回...${RESET}"
+                read -n 1 -r -p "" _
             else
                 _echo "\n${YELLOW}暂无连接历史${RESET}"
                 sleep 1
@@ -369,7 +417,7 @@ _interactive_list() {
                 ode_host=$(echo "$tn" | cut -d'|' -f4)
                 _record_connection "$ode_name" "$ode_host"
                 printf '\033[H\033[J'
-                _echo "\n\n  ${BLUE}>>> ${YELLOW}${ode_name}${RESET} @ ${GREEN}${ode_host}${RESET}\n"
+                _echo "\n  ${BLUE}>>> ${YELLOW}${ode_name}${RESET} @ ${GREEN}${ode_host}${RESET}\n"
                 ssh_connect "$ode_id"
                 local cs=$?; [[ $cs -ne 0 ]] && sleep 1.5
             fi
@@ -389,28 +437,39 @@ _interactive_list() {
 }
 
 show_help() {
+    printf '\033[H\033[J'
     echo ""
-    _echo "${CYAN}==== SSH MANAGER v${VERSION} 帮助 ====${RESET}"
+    _echo "  ${BOLD}${CYAN}SSH Manager v${VERSION} 帮助${RESET}"
+    _echo "  ${DIM}${CYAN}────────────────────────────────────────────────────────────${RESET}"
     echo ""
-    _echo "${GREEN}列表导航:${RESET}"
-    echo "  ${BLUE}↑↓${RESET}        - 选择节点, 当前行高亮"
-    echo "  ${BLUE}Enter${RESET}     - 连接到选中节点"
-    echo "  ${BLUE}输入文字${RESET}  - 实时过滤节点列表"
-    echo "  ${BLUE}ESC${RESET}       - 清除过滤条件"
-    echo "  ${BLUE}退格${RESET}      - 删除最后一个过滤字符"
+    _echo "  ${BOLD}${GREEN}列表导航${RESET}"
+    _echo "    ${BLUE}↑ ↓${RESET}        选择节点，当前行高亮"
+    _echo "    ${BLUE}Enter${RESET}     连接到选中节点"
+    _echo "    ${BLUE}输入文字${RESET}   实时过滤节点列表"
+    _echo "    ${BLUE}ESC${RESET}       清除过滤条件"
+    _echo "    ${BLUE}退格${RESET}      删除最后一个过滤字符"
     echo ""
-    _echo "${GREEN}快捷键:${RESET}"
-    echo "  ${BLUE}a${RESET} - 添加节点   ${BLUE}d${RESET} - 删除模式   ${BLUE}e${RESET} - 编辑节点"
-    echo "  ${BLUE}p${RESET} - 预览详情   ${BLUE}x${RESET} - 导出配置   ${BLUE}i${RESET} - 导入"
-    echo "  ${BLUE}t${RESET} - 主题切换   ${BLUE}h${RESET} - 帮助       ${BLUE}q${RESET} - 退出"
+    _echo "  ${BOLD}${GREEN}快捷键${RESET}"
+    _echo "    ${BLUE}a${RESET}   添加节点     ${BLUE}d${RESET}   删除模式     ${BLUE}e${RESET}   编辑节点"
+    _echo "    ${BLUE}p${RESET}   预览详情     ${BLUE}x${RESET}   导出配置     ${BLUE}i${RESET}   导入"
+    _echo "    ${BLUE}t${RESET}   主题切换     ${BLUE}h${RESET}   帮助         ${BLUE}q${RESET}   退出"
     echo ""
-    _echo "${GREEN}命令行:${RESET}"
-    echo "  sshm prod         - 直接搜索并连接匹配节点"
-    echo "  sshm --config <f>  - 使用指定配置文件"
-    echo "  sshm --help        - 显示此帮助"
+    _echo "  ${BOLD}${GREEN}命令行${RESET}"
+    _echo "    sshm <keyword>       直接搜索并连接匹配节点"
+    _echo "    sshm --config <f>    使用指定配置文件"
+    _echo "    sshm --list          列出所有节点"
+    _echo "    sshm --list --format json   JSON 格式输出"
+    _echo "    sshm --validate      校验配置文件"
+    _echo "    sshm --help          显示帮助"
     echo ""
-    _echo "${YELLOW}安全提示: 密码以明文存储在 config.yaml 中，请确保文件权限为 600，并推荐使用 SSH 密钥认证。${RESET}"
+    _echo "  ${BOLD}${GREEN}环境变量${RESET}"
+    echo "    ${BLUE}SSH_MANAGER_CONFIG${RESET}   配置文件路径"
     echo ""
-    read -n 1 -r -p "按任意键返回..." _
+    _echo "  ${YELLOW}${BOLD}安全提示${RESET}"
+    _echo "    ${DIM}密码以明文存储在 config.yaml 中，请确保文件权限为 600，${RESET}"
+    _echo "    ${DIM}并推荐使用 SSH 密钥认证。${RESET}"
+    echo ""
+    _echo "  ${DIM}按任意键返回...${RESET}"
+    read -n 1 -r -p "" _
     echo
 }
