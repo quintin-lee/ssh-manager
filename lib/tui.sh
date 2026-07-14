@@ -53,8 +53,8 @@ _apply_theme() {
 _theme_swatch() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    printf "  \033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██${RESET}\n" \
-        "$r" "$g" "$y" "$b" "$m" "$c" "$w"
+    printf "${BOLD}${YELLOW}%s${RESET} \033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm██\033[%sm${RESET}" \
+        "$_" "$r" "$g" "$y" "$b" "$m" "$c" "$w"
 }
 
 _theme_preview_line() {
@@ -67,7 +67,7 @@ _theme_preview_line() {
     local cyan=$'\033['"${c}"'m'
     local white=$'\033['"${w}"'m'
     local dim=$'\033[2m'
-    printf "  ${dim}%s${RESET} ${yellow}%s${RESET}  ${green}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} %s${RESET}\n" \
+    printf "  ${dim}%s${RESET} ${yellow}%s${RESET}  ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} %s${RESET}\n" \
         " 1" "▸" "Default" "web01" "22" "🔒"
 }
 
@@ -98,34 +98,6 @@ _sshm_save_theme() {
     theme_file=$(_sshm_theme_file)
     local current_name="${_SSHM_THEME_NAMES[$_SSHM_THEME_IDX]}"
     echo "$current_name" > "$theme_file" 2>/dev/null || true
-}
-
-_theme_preview_line() {
-    local name="$1"
-    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    local red=$'\033['"${r}"'m'
-    local green=$'\033['"${g}"'m'
-    local yellow=$'\033['"${y}"'m'
-    local blue=$'\033['"${b}"'m'
-    local cyan=$'\033['"${c}"'m'
-    local white=$'\033['"${w}"'m'
-    local dim=$'\033[2m'
-    printf "  ${dim}%s${RESET} ${yellow}%s${RESET}  ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} %s${RESET}\n" \
-        " 1" "▸" "Default" "web01" "22" "🔒"
-}
-
-_theme_preview_line() {
-    local name="$1"
-    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    local red=$'\033['"${r}"'m'
-    local green=$'\033['"${g}"'m'
-    local yellow=$'\033['"${y}"'m'
-    local blue=$'\033['"${b}"'m'
-    local cyan=$'\033['"${c}"'m'
-    local white=$'\033['"${w}"'m'
-    local bold=$'\033['"${bold}"';1m'
-    printf "  ${bold}${cyan}▶${RESET} ${yellow}%s${RESET} ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} ${cyan}%s${RESET}\n" \
-        " 1" "▸" "Default" "web01" "22" "🔒"
 }
 
 _choose_theme() {
