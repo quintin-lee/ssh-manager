@@ -103,6 +103,10 @@ get_all_nodes() {
     unset NODES_ARRAY
     NODES_ARRAY=()
 
+    if [[ ! -f "$conf" ]]; then
+        return 0
+    fi
+
     local current_id=0
     local node_name="" node_group="" node_host="" node_port="22" node_type="pass" node_tags=""
     local in_node=0

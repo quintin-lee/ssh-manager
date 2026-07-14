@@ -19,7 +19,7 @@ jobs:
       - name: Install Bash 5 (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install bash
+          brew install bash expect
           echo "$(brew --prefix)/bin" >> $GITHUB_PATH
 
       - name: Install Bats
@@ -32,7 +32,7 @@ jobs:
       - name: Install ShellCheck (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update -qq || true; sudo apt-get install -y -qq shellcheck
+          sudo apt-get update -qq || true; sudo apt-get install -y -qq shellcheck expect iputils-ping
 
       - name: Install ShellCheck (macOS)
         if: runner.os == 'macOS'
