@@ -84,14 +84,15 @@ _theme_color_bar() {
 _theme_preview() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
-    local red=$(_fg "$r")
-    local green=$(_fg "$g")
-    local yellow=$(_fg "$y")
-    local blue=$(_fg "$b")
-    local cyan=$(_fg "$c")
-    local white=$(_fg "$w")
+    local red green yellow blue cyan white bold_c
     local dim=$'\033[2m'
-    local bold_c=$(_fg "$bold")
+    red=$(_fg "$r")
+    green=$(_fg "$g")
+    yellow=$(_fg "$y")
+    blue=$(_fg "$b")
+    cyan=$(_fg "$c")
+    white=$(_fg "$w")
+    bold_c=$(_fg "$bold")
 
     echo ""
     printf "  ${BOLD}${_}${RESET} 主题预览\n"

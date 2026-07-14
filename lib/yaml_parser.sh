@@ -5,8 +5,6 @@ _trim() {
     echo "${var%"${var##*[![:space:]]}"}"
 }
 
-# shellcheck disable=SC2034  # NODE_* variables are intentionally exported for callers
-
 # Trim leading and trailing whitespace from a string
 _trim() {
     local var="$1"
@@ -74,18 +72,27 @@ read_node_info() {
         fi
     done <"$conf"
 
-    NODE_GROUP=${_group:-Default}
-    NODE_PORT=${_port:-22}
-    NODE_TYPE=${_type:-pass}
+    export NODE_GROUP=${_group:-Default}
+    export NODE_PORT=${_port:-22}
+    export NODE_TYPE=${_type:-pass}
 
+    export NODE_NAME
     NODE_NAME=$(_trim "${_name:-}")
+    export NODE_GROUP
     NODE_GROUP=$(_trim "${NODE_GROUP:-}")
+    export NODE_HOST
     NODE_HOST=$(_trim "${_host:-}")
+    export NODE_PORT
     NODE_PORT=$(_trim "${NODE_PORT:-}")
+    export NODE_USER
     NODE_USER=$(_trim "${_user:-}")
+    export NODE_TYPE
     NODE_TYPE=$(_trim "${NODE_TYPE:-}")
+    export NODE_PASS
     NODE_PASS=$(_trim "${_pass:-}")
+    export NODE_KEYPATH
     NODE_KEYPATH=$(_trim "${_keypath:-}")
+    export NODE_TAGS
     NODE_TAGS=$(_trim "${_tags:-}")
 }
 
