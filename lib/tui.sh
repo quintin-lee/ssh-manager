@@ -193,7 +193,7 @@ _render_list() {
         [[ $row -ge $visible_h ]] && break
 
         IFS='|' read -r original_id name group host port type tags <<<"$node"
-        local prefix="  "
+        local prefix=" "
         local cursor=" "
         if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then
             prefix="${BOLD}${BLUE}▶${RESET}"
