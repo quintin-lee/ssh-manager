@@ -29,7 +29,12 @@ _SSHM_THEMES[sunset]="31 33 35 33 31 33 37 33 日落"
 _SSHM_THEMES[forest]="32 36 33 34 32 36 37 32 森林"
 _SSHM_THEMES[monokai]="208 151 228 81 189 117 255 228 Monokai"
 _SSHM_THEMES[nord]="94 76 93 80 129 108 218 218 Nord"
-_SSHM_THEME_NAMES=(dark light ocean sunset forest monokai nord)
+_SSHM_THEMES[dracula]="255 121 250 189 255 80 248 255 Dracula"
+_SSHM_THEMES[gruvbox]="204 184 180 110 188 143 146 184 Gruvbox"
+_SSHM_THEMES[tokyo-night]="73 187 152 122 187 130 219 187 TokyoNight"
+_SSHM_THEMES[catppuccin]="243 166 249 111 203 116 230 249 Catppuccin"
+_SSHM_THEMES[ayu]="231 185 95 79 127 23 253 231 Ayu"
+_SSHM_THEME_NAMES=(dark light ocean sunset forest monokai nord dracula gruvbox tokyo-night catppuccin ayu)
 _SSHM_THEME_IDX=0
 
 _apply_theme() {
@@ -52,6 +57,63 @@ _theme_swatch() {
         "$r" "$g" "$y" "$b" "$m" "$c" "$w" "$BOLD" "${_}"
 }
 
+_theme_preview_line() {
+    local name="$1"
+    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
+    local red=$'\033['"${r}"'m'
+    local green=$'\033['"${g}"'m'
+    local yellow=$'\033['"${y}"'m'
+    local blue=$'\033['"${b}"'m'
+    local cyan=$'\033['"${c}"'m'
+    local white=$'\033['"${w}"'m'
+    local bold=$'\033['"${bold}"';1m'
+    printf "  ${bold}${cyan}▶${RESET} ${yellow}%s${RESET} ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} ${blue}%s${RESET} ${cyan}%s${RESET}\n" \
+        " 1" "▸" "Default" "web01" "22" "[pass]" "🔒"
+}
+
+_sshm_theme_file() {
+    local conf_dir
+    conf_dir=$(dirname "$_SSHM_CONF")
+    echo "${conf_dir}/.theme"
+}
+
+_sshm_load_theme() {
+    local theme_file
+    theme_file=$(_sshm_theme_file)
+    if [[ -f "$theme_file" ]]; then
+        local saved_theme
+        saved_theme=$(cat "$theme_file" 2>/dev/null | tr -d '[:space:]')
+        if [[ -n "$saved_theme" && -n "${_SSHM_THEMES[$saved_theme]+x}" ]]; then
+            _SSHM_THEME_IDX=0
+            for i in "${!_SSHM_THEME_NAMES[@]}"; do
+                [[ "${_SSHM_THEME_NAMES[$i]}" == "$saved_theme" ]] && _SSHM_THEME_IDX=$i && break
+            done
+            _apply_theme "$saved_theme"
+        fi
+    fi
+}
+
+_sshm_save_theme() {
+    local theme_file
+    theme_file=$(_sshm_theme_file)
+    local current_name="${_SSHM_THEME_NAMES[$_SSHM_THEME_IDX]}"
+    echo "$current_name" > "$theme_file" 2>/dev/null || true
+}
+
+_theme_preview_line() {
+    local name="$1"
+    IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
+    local red=$'\033['"${r}"'m'
+    local green=$'\033['"${g}"'m'
+    local yellow=$'\033['"${y}"'m'
+    local blue=$'\033['"${b}"'m'
+    local cyan=$'\033['"${c}"'m'
+    local white=$'\033['"${w}"'m'
+    local bold=$'\033['"${bold}"';1m'
+    printf "  ${bold}${cyan}▶${RESET} ${yellow}%s${RESET} ${green}%s${RESET}  ${white}%s${RESET}  ${red}%s${RESET}:${green}%s${RESET} ${cyan}%s${RESET}\n" \
+        " 1" "▸" "Default" "web01" "22" "🔒"
+}
+
 _choose_theme() {
     local sel=0
     local orig_r="$RED" orig_g="$GREEN" orig_y="$YELLOW" orig_b="$BLUE" orig_m="$MAGENTA" orig_c="$CYAN" orig_w="$WHITE" orig_bold="$BOLD"
@@ -66,6 +128,7 @@ _choose_theme() {
             local arrow="  "
             [[ $i -eq $sel ]] && arrow="${BOLD}${BLUE}>${RESET} "
             _echo "${arrow}$(_theme_swatch "$tname") ${label}"
+            [[ $i -eq $sel ]] && _echo "      ${DIM}${CYAN}示例:${RESET}$(_theme_preview_line "$tname")"
         done
         echo ""
         _echo "  ${BLUE}↑↓${RESET}选择(实时预览)  ${BLUE}Enter${RESET}确认  ${BLUE}q${RESET}取消"
@@ -75,7 +138,7 @@ _choose_theme() {
         case "$key" in
             UP)    ((sel > 0)) && ((sel--)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
             DOWN)  ((sel < ${#_SSHM_THEME_NAMES[@]} - 1)) && ((sel++)) && _apply_theme "${_SSHM_THEME_NAMES[$sel]}" ;;
-            ENTER) return ;;
+            ENTER) _sshm_save_theme; return ;;
             q|Q)   RED="$orig_r"; GREEN="$orig_g"; YELLOW="$orig_y"; BLUE="$orig_b"; MAGENTA="$orig_m"; CYAN="$orig_c"; WHITE="$orig_w"; BOLD="$orig_bold"; return ;;
         esac
     done

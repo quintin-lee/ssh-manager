@@ -230,6 +230,7 @@ NODE
 done
 
 init_env
+_sshm_load_theme
 
 if [[ $# -gt 0 ]]; then
     keyword="${1,,}"
