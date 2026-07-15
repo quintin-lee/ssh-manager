@@ -261,6 +261,17 @@ _auth_label() {
     [[ "$1" == "key" ]] && echo "密钥" || echo "密码"
 }
 
+# Right-pad a string to a fixed visual width, ignoring ANSI escape codes.
+_pad_right() {
+    local str="$1"
+    local width="$2"
+    local stripped
+    stripped=$(printf '%s' "$str" | sed 's/\x1b\[[0-9;]*m//g')
+    local pad=$((width - ${#stripped}))
+    [[ $pad -lt 0 ]] && pad=0
+    printf '%s%*s' "$str" "$pad" ""
+}
+
 _render_list() {
     local selected_idx="$1"
     local filter_key="${2,,}"
@@ -275,6 +286,9 @@ _render_list() {
         get_all_nodes "$_SSHM_CONF" "$filter_key" ""
         _SSHM_CONF_MTIME="$current_mtime"
         _SSHM_LAST_FILTER="$filter_key"
+        if [[ -z "$filter_key" ]]; then
+            _SSHM_TOTAL_NODES=${#NODES_ARRAY[@]}
+        fi
         if [[ ${#NODES_ARRAY[@]} -gt 0 ]]; then
             local sorted_output
             local tag_filters=()
@@ -323,7 +337,7 @@ _render_list() {
 
     printf '\033[H\033[J'
     local hdr="${BOLD}${CYAN}SSH Manager v${VERSION}${RESET}"
-    [[ -n "$filter_key" ]] && hdr="${hdr}  ${DIM}${CYAN}过滤: ${filter_key}${RESET} ${DIM}(ESC清除)${RESET}"
+    [[ -n "$filter_key" ]] && hdr="${hdr}  ${DIM}${CYAN}过滤: ${filter_key}${RESET} ${DIM}| ${total}/${_SSHM_TOTAL_NODES:-0} 匹配 (ESC清除)${RESET}"
     local sort_l="组"; case "${_SSHM_SORT_MODE:-group}" in name) sort_l="名" ;; status) sort_l="状态" ;; esac
     _echo "${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
     _echo " ${hdr}"
@@ -369,7 +383,11 @@ _render_list() {
         fi
         local tag_display=""
         [[ -n "${tags:-}" ]] && tag_display=" ${CYAN}#${tags//,/ #}${RESET}"
-        _echo " ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${group_display}  ${name_display}  ${host}:${port} ${auth_icon}${tag_display}"
+        local pad_group pad_name pad_hp
+        pad_group=$(_pad_right "$group_display" 12)
+        pad_name=$(_pad_right "$name_display" 14)
+        pad_hp=$(_pad_right "${host}:${port}" 26)
+        _echo " ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${pad_group} ${pad_name} ${pad_hp} ${auth_icon}${tag_display}"
         ((display_id++)); ((idx++)); ((row++))
     done
 
@@ -399,7 +417,10 @@ _preview_node() {
     _echo "  ${BOLD}分组:${RESET}  ${group:-Default}"
     _echo "  ${BOLD}主机:${RESET}  ${GREEN}${host}${RESET}"
     _echo "  ${BOLD}端口:${RESET}  ${GREEN}${port}${RESET}"
-    _echo "  ${BOLD}用户:${RESET}  ${name}"
+    local user_field
+    read_node_info "$_SSHM_CONF" "$id" >/dev/null 2>&1
+    user_field="${NODE_USER:-root}"
+    _echo "  ${BOLD}用户:${RESET}  ${user_field}"
     _echo "  ${BOLD}认证:${RESET}  $(_auth_label "$type") $(_auth_icon "$type")"
     [[ -n "${tags:-}" ]] && _echo "  ${BOLD}标签:${RESET}  ${CYAN}#${tags//,/ #}${RESET}"
     echo ""
@@ -560,18 +581,23 @@ _interactive_list() {
             _undo_delete
             ;;
         1|2|3|4|5|6|7|8|9)
-            local num_idx=$((key - 1))
-            if [[ $num_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
-                local tn ode_id ode_name ode_host
-                tn="${_SSHM_RENDERED_NODES[$num_idx]}"
-                ode_id=$(echo "$tn" | cut -d'|' -f1)
-                ode_name=$(echo "$tn" | cut -d'|' -f2)
-                ode_host=$(echo "$tn" | cut -d'|' -f4)
-                _record_connection "$ode_name" "$ode_host"
-                printf '\033[H\033[J'
-                _echo "\n  ${BLUE}>>> ${YELLOW}${ode_name}${RESET} @ ${GREEN}${ode_host}${RESET}\n"
-                ssh_connect "$ode_id"
-                local cs=$?; [[ $cs -ne 0 ]] && sleep 1.5
+            if [[ -n "$filter_key" ]]; then
+                filter_key="${filter_key}${key,,}"
+                selected_idx=0
+            else
+                local num_idx=$((key - 1))
+                if [[ $num_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
+                    local tn ode_id ode_name ode_host
+                    tn="${_SSHM_RENDERED_NODES[$num_idx]}"
+                    ode_id=$(echo "$tn" | cut -d'|' -f1)
+                    ode_name=$(echo "$tn" | cut -d'|' -f2)
+                    ode_host=$(echo "$tn" | cut -d'|' -f4)
+                    _record_connection "$ode_name" "$ode_host"
+                    printf '\033[H\033[J'
+                    _echo "\n  ${BLUE}>>> ${YELLOW}${ode_name}${RESET} @ ${GREEN}${ode_host}${RESET}\n"
+                    ssh_connect "$ode_id"
+                    local cs=$?; [[ $cs -ne 0 ]] && sleep 1.5
+                fi
             fi
             ;;
         $'\177'|$'\010')
