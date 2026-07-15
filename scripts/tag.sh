@@ -38,28 +38,24 @@ sed_i() {
 
 # -- 1. VERSION file --
 echo "$NEW_VERSION" > VERSION
-echo "  [1/5] VERSION  ................ ${NEW_VERSION}"
+echo "  [1/4] VERSION  ................ ${NEW_VERSION}"
 
 # -- 2. README.md --
 # Global replace of OLD_VERSION with NEW_VERSION (all occurrences in README are version strings)
 sed_i "s/${OLD_VERSION//./\\.}/${NEW_VERSION}/g" README.md
-echo "  [2/5] README.md  .............. version badge & download links"
+echo "  [2/4] README.md  .............. version badge & download links"
 
-# -- 3. build/makeself/payload/doc/README.md --
-sed_i "s/${OLD_VERSION//./\\.}/${NEW_VERSION}/g" build/makeself/payload/doc/README.md
-echo "  [3/5] build/*/README.md  ...... download links"
-
-# -- 4. CHANGELOG.md --
+# -- 3. CHANGELOG.md --
 TODAY=$(date +%Y-%m-%d)
 sed_i "/^## \[Unreleased\]$/a\\\n## [${NEW_VERSION}] - ${TODAY}\n" CHANGELOG.md
-echo "  [4/5] CHANGELOG.md  ........... added [${NEW_VERSION}] section"
+echo "  [3/4] CHANGELOG.md  ........... added [${NEW_VERSION}] section"
 
-# -- 5. Commit & Tag --
-git add VERSION README.md build/makeself/payload/doc/README.md CHANGELOG.md
+# -- 4. Commit & Tag --
+git add VERSION README.md CHANGELOG.md
 git commit -m "chore: bump version to ${NEW_VERSION}"
 git tag "v${NEW_VERSION}"
 
-echo "  [5/5] git tag  ................ v${NEW_VERSION}"
+echo "  [4/4] git tag  ................ v${NEW_VERSION}"
 echo ""
 echo "Done! Tagged v${NEW_VERSION}"
 echo "Run: git push --follow-tags"
