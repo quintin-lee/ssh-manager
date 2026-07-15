@@ -60,6 +60,129 @@ _SSHM_THEMES[ayu]="231 185 95 79 127 23 253 231 Ayu"
 _SSHM_THEME_NAMES=(dark light ocean sunset forest monokai nord dracula gruvbox tokyo-night catppuccin ayu)
 _SSHM_THEME_IDX=0
 
+# Ping cache for async connectivity checks
+declare -gA _SSHM_PING_STATUS    # host -> "up"/"down"/"checking"
+declare -gA _SSHM_PING_TIME      # host -> epoch seconds
+declare -gA _SSHM_PING_PID       # host -> background PID
+_SSHM_PING_TTL=30                # cache TTL in seconds
+_SSHM_PING_TIMEOUT=2             # ping timeout per host
+_SSHM_PING_DIR="${TMPDIR:-/tmp}/ssh-manager-ping-$$"
+mkdir -p "$_SSHM_PING_DIR" 2>/dev/null || true
+
+# Background ping checker - writes result to temp file
+_ping_bg_check() {
+    local host="$1"
+    local result_file="${_SSHM_PING_DIR}/${host//\//_}"
+    _SSHM_PING_STATUS["$host"]="checking"
+    _SSHM_PING_TIME["$host"]=$(date +%s)
+
+    (
+        if [[ "$(uname)" == "Darwin" ]]; then
+            ping -c 1 -t "$_SSHM_PING_TIMEOUT" "$host" &>/dev/null
+        else
+            ping -c 1 -W "$_SSHM_PING_TIMEOUT" "$host" &>/dev/null
+        fi
+        local result=$?
+        if [[ $result -eq 0 ]]; then
+            echo "up" >"$result_file"
+        else
+            echo "down" >"$result_file"
+        fi
+    ) &
+    _SSHM_PING_PID["$host"]=$!
+}
+
+# Get cached ping status, trigger async check if stale/missing
+_get_ping_status() {
+    local host="$1"
+    local now
+    now=$(date +%s)
+    local result_file="${_SSHM_PING_DIR}/${host//\//_}"
+
+    # Check if cached result file exists and is fresh
+    if [[ -f "$result_file" ]]; then
+        local cached_status
+        cached_status=$(cat "$result_file" 2>/dev/null || echo "")
+        local cached_time
+        cached_time=$(stat -c %Y "$result_file" 2>/dev/null || stat -f %m "$result_file" 2>/dev/null || echo 0)
+        if [[ -n "$cached_status" ]] && (( now - cached_time <= _SSHM_PING_TTL )); then
+            _SSHM_PING_STATUS["$host"]="$cached_status"
+            _SSHM_PING_TIME["$host"]="$cached_time"
+            echo "$cached_status"
+            return
+        fi
+    fi
+
+    # No cache or expired -> trigger background check
+    if [[ -n "${_SSHM_PING_PID[$host]:-}" ]] && kill -0 "${_SSHM_PING_PID[$host]}" 2>/dev/null; then
+        kill "${_SSHM_PING_PID[$host]}" 2>/dev/null
+    fi
+    _ping_bg_check "$host"
+    _SSHM_PING_STATUS["$host"]="checking"
+    _SSHM_PING_TIME["$host"]="$now"
+    echo "checking"
+}
+
+# Batch-initialize ping checks for all loaded nodes.
+# Called once after node parsing, before rendering.
+# This decouples ping spawning from per-node render to avoid startup delay.
+_init_ping_checks() {
+    for node in "${NODES_ARRAY[@]}"; do
+        local host
+        host=$(echo "$node" | cut -d'|' -f4)
+        local result_file="${_SSHM_PING_DIR}/${host//\//_}"
+
+        # Use cached result if still fresh
+        if [[ -f "$result_file" ]]; then
+            local cached_status cached_time now
+            cached_status=$(cat "$result_file" 2>/dev/null || echo "")
+            cached_time=$(stat -c %Y "$result_file" 2>/dev/null || stat -f %m "$result_file" 2>/dev/null || echo 0)
+            now=$(date +%s)
+            if [[ -n "$cached_status" ]] && (( now - cached_time <= _SSHM_PING_TTL )); then
+                _SSHM_PING_STATUS["$host"]="$cached_status"
+                _SSHM_PING_TIME["$host"]="$cached_time"
+                continue
+            fi
+        fi
+
+        # Ping already running? Keep "checking" status
+        if [[ -n "${_SSHM_PING_PID[$host]:-}" ]] && kill -0 "${_SSHM_PING_PID[$host]}" 2>/dev/null; then
+            _SSHM_PING_STATUS["$host"]="checking"
+            continue
+        fi
+
+        # Start new background ping
+        _ping_bg_check "$host"
+    done
+}
+
+# Poll for completed background ping checks
+_poll_ping_results() {
+    for host in "${!_SSHM_PING_PID[@]}"; do
+        local pid="${_SSHM_PING_PID[$host]}"
+        [[ -z "$pid" ]] && continue
+        if ! kill -0 "$pid" 2>/dev/null; then
+            # Process finished, read result
+            local result_file="${_SSHM_PING_DIR}/${host//\//_}"
+            if [[ -f "$result_file" ]]; then
+                local status
+                status=$(cat "$result_file" 2>/dev/null || echo "down")
+                _SSHM_PING_STATUS["$host"]="$status"
+                _SSHM_PING_TIME["$host"]=$(date +%s)
+            fi
+            _SSHM_PING_PID["$host"]=""
+        fi
+    done
+}
+
+# Cleanup background ping jobs and temp dir
+_cleanup_ping_jobs() {
+    for pid in "${_SSHM_PING_PID[@]}"; do
+        [[ -n "$pid" ]] && kill "$pid" 2>/dev/null
+    done
+    [[ -d "$_SSHM_PING_DIR" ]] && rm -rf "$_SSHM_PING_DIR" 2>/dev/null
+}
+
 _apply_theme() {
     local name="$1"
     IFS=' ' read -r r g y b m c w bold _ <<<"${_SSHM_THEMES[$name]}"
@@ -323,6 +446,9 @@ _render_list() {
         fi
     fi
 
+    # Batch-initialize all background ping checks after node load
+    _init_ping_checks
+
     local disp_nodes=()
     for node in "${NODES_ARRAY[@]}"; do
         IFS='|' read -r original_id name group host port type tags <<<"$node"
@@ -354,6 +480,11 @@ _render_list() {
         _NEW_LINES+=("${BOLD}${CYAN}────────────────────────────────────────────────────────────${RESET}")
         _NEW_LINES+=(" ${DIM}sshm v${VERSION} | 按 ${BOLD}h${RESET}${DIM} 查看帮助 | ${BOLD}q${RESET}${DIM} 退出${RESET}")
     else
+        local hdr_id=$(_pad_right "#" 2)
+        local hdr_group=$(_pad_right "Group" 12)
+        local hdr_name=$(_pad_right "Name" 14)
+        local hdr_hp=$(_pad_right "Host:Port" 26)
+        _NEW_LINES+=("${DIM}   ${hdr_id}   ● ${hdr_group} ${hdr_name} ${hdr_hp}${RESET}")
         local display_id=1 idx=0 row=0
         for node in "${disp_nodes[@]}"; do
             [[ $idx -lt ${_SSHM_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
@@ -371,6 +502,14 @@ _render_list() {
             fi
             local auth_icon
             auth_icon=$(_auth_icon "$type")
+            # Ping status indicator (pure array lookup — pings initialized in batch via _init_ping_checks)
+            local ping_status ping_indicator
+            ping_status="${_SSHM_PING_STATUS[$host]:-checking}"
+            case "$ping_status" in
+                up)   ping_indicator="${GREEN}●${RESET}" ;;
+                down) ping_indicator="${RED}●${RESET}" ;;
+                *)    ping_indicator="${YELLOW}◐${RESET}" ;;  # checking
+            esac
             local id_str
             id_str=$(printf "%2d" $display_id)
             local group_display="$group"
@@ -386,7 +525,7 @@ _render_list() {
             pad_group=$(_pad_right "$group_display" 12)
             pad_name=$(_pad_right "$name_display" 14)
             pad_hp=$(_pad_right "${host}:${port}" 26)
-            _NEW_LINES+=(" ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${pad_group} ${pad_name} ${pad_hp} ${auth_icon}${tag_display}")
+            _NEW_LINES+=(" ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${pad_group} ${pad_name} ${pad_hp} ${ping_indicator} ${auth_icon}${tag_display}")
             ((display_id++)); ((idx++)); ((row++))
         done
 
@@ -445,7 +584,13 @@ _preview_node() {
     [[ -n "${tags:-}" ]] && _echo "  ${BOLD}标签:${RESET}  ${CYAN}#${tags//,/ #}${RESET}"
     echo ""
     local alive="无法检测"
-    _ping_check "$host" && alive="${GREEN}可达${RESET}" || alive="${RED}不可达${RESET}"
+    local ping_status
+    ping_status=$(_get_ping_status "$host")
+    case "$ping_status" in
+        up)   alive="${GREEN}可达${RESET}" ;;
+        down) alive="${RED}不可达${RESET}" ;;
+        *)    alive="${YELLOW}检测中...${RESET}" ;;
+    esac
     _echo "  ${BOLD}状态:${RESET}  ${alive}"
     echo ""
     _echo "  ${DIM}${BLUE}Enter${RESET} 连接   ${BLUE}e${RESET} 编辑   ${DIM}其他键返回${RESET}"
@@ -466,8 +611,10 @@ _interactive_list() {
     _SSHM_SCROLL_OFFSET=0
 
     trap 'filter_key=""; selected_idx=0' SIGINT
+    trap '_cleanup_ping_jobs' EXIT
 
     while true; do
+        _poll_ping_results
         _render_list "$selected_idx" "$filter_key" "$([[ "$mode" == "delete" ]] && echo 2 || echo 1)"
 
         local key
