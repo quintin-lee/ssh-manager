@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-07-15
+
+
 ### Added
 - Module split: extracted `lib/config.sh`, `lib/util.sh`, `lib/ssh.sh`, `lib/tui.sh`, `lib/node_cmd.sh`
 - `lib/ssh_connect.tcl`: externalized expect SSH template
