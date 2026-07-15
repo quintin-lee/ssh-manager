@@ -335,74 +335,94 @@ _render_list() {
     if [[ $total -gt 0 && $selected_idx -ge $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _SSHM_SCROLL_OFFSET=$((selected_idx - visible_h + 1)); fi
     [[ ${_SSHM_SCROLL_OFFSET:-0} -lt 0 ]] && _SSHM_SCROLL_OFFSET=0
 
-    printf '\033[H\033[J'
+    local -a _NEW_LINES=()
+
     local hdr="${BOLD}${CYAN}SSH Manager v${VERSION}${RESET}"
     [[ -n "$filter_key" ]] && hdr="${hdr}  ${DIM}${CYAN}过滤: ${filter_key}${RESET} ${DIM}| ${total}/${_SSHM_TOTAL_NODES:-0} 匹配 (ESC清除)${RESET}"
     local sort_l="组"; case "${_SSHM_SORT_MODE:-group}" in name) sort_l="名" ;; status) sort_l="状态" ;; esac
-    _echo "${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
-    _echo " ${hdr}"
-    _echo " ${DIM}${CYAN}排序: ${sort_l} | 主题: ${_SSHM_THEME_NAMES[$((_SSHM_THEME_IDX))]}${RESET}"
-    _echo "${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}"
+    _NEW_LINES+=("${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}")
+    _NEW_LINES+=(" ${hdr}")
+    _NEW_LINES+=(" ${DIM}${CYAN}排序: ${sort_l} | 主题: ${_SSHM_THEME_NAMES[$((_SSHM_THEME_IDX))]}${RESET}")
+    _NEW_LINES+=("${BOLD}${CYAN}════════════════════════════════════════════════════════════${RESET}")
 
     if [[ $total -eq 0 ]]; then
-        echo ""
-        _echo "  ${YELLOW}${BOLD}  暂无节点${RESET}"
-        _echo "  ${DIM}  请按 ${RESET}${BOLD}a${RESET}${DIM} 添加新节点${RESET}"
-        [[ -n "$filter_key" ]] && _echo "  ${DIM}  或按 ${RESET}${BOLD}ESC${RESET}${DIM} 清除过滤条件${RESET}"
-        echo ""
-        _echo "${BOLD}${CYAN}────────────────────────────────────────────────────────────${RESET}"
-        _echo " ${DIM}sshm v${VERSION} | 按 ${BOLD}h${RESET}${DIM} 查看帮助 | ${BOLD}q${RESET}${DIM} 退出${RESET}"
-        return
+        _NEW_LINES+=("")
+        _NEW_LINES+=("  ${YELLOW}${BOLD}  暂无节点${RESET}")
+        _NEW_LINES+=("  ${DIM}  请按 ${RESET}${BOLD}a${RESET}${DIM} 添加新节点${RESET}")
+        [[ -n "$filter_key" ]] && _NEW_LINES+=("  ${DIM}  或按 ${RESET}${BOLD}ESC${RESET}${DIM} 清除过滤条件${RESET}")
+        _NEW_LINES+=("")
+        _NEW_LINES+=("${BOLD}${CYAN}────────────────────────────────────────────────────────────${RESET}")
+        _NEW_LINES+=(" ${DIM}sshm v${VERSION} | 按 ${BOLD}h${RESET}${DIM} 查看帮助 | ${BOLD}q${RESET}${DIM} 退出${RESET}")
+    else
+        local display_id=1 idx=0 row=0
+        for node in "${disp_nodes[@]}"; do
+            [[ $idx -lt ${_SSHM_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
+            [[ $row -ge $visible_h ]] && break
+
+            IFS='|' read -r original_id name group host port type tags <<<"$node"
+            local prefix=" "
+            local cursor=" "
+            if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then
+                prefix="${BOLD}${BLUE}▶${RESET}"
+                cursor="${BOLD}${BLUE}▸${RESET}"
+            elif [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]]; then
+                prefix="${BOLD}${RED}▶${RESET}"
+                cursor="${BOLD}${RED}▸${RESET}"
+            fi
+            local auth_icon
+            auth_icon=$(_auth_icon "$type")
+            local id_str
+            id_str=$(printf "%2d" $display_id)
+            local group_display="$group"
+            [[ -z "$group_display" ]] && group_display="Default"
+            local name_display="$name"
+            if [[ -n "$filter_key" ]]; then
+                local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
+                [[ "$hl_name" != "$name" ]] && name_display="$hl_name"
+            fi
+            local tag_display=""
+            [[ -n "${tags:-}" ]] && tag_display=" ${CYAN}#${tags//,/ #}${RESET}"
+            local pad_group pad_name pad_hp
+            pad_group=$(_pad_right "$group_display" 12)
+            pad_name=$(_pad_right "$name_display" 14)
+            pad_hp=$(_pad_right "${host}:${port}" 26)
+            _NEW_LINES+=(" ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${pad_group} ${pad_name} ${pad_hp} ${auth_icon}${tag_display}")
+            ((display_id++)); ((idx++)); ((row++))
+        done
+
+        if [[ ${_SSHM_SCROLL_OFFSET:-0} -gt 0 ]]; then _NEW_LINES+=("  ${DIM}${CYAN}▲${RESET}"); fi
+        if [[ $total -gt $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _NEW_LINES+=("  ${DIM}${CYAN}▼ 还有 $((total - _SSHM_SCROLL_OFFSET - visible_h)) 项${RESET}"); fi
+
+        _NEW_LINES+=("")
+        local mode_hint=""
+        [[ "$highlight" -eq 2 ]] && mode_hint="${BOLD}${RED}[删除模式]${RESET} "
+        local sel_info=""
+        if [[ $total -gt 0 && $selected_idx -lt $total ]]; then
+            local sn sh; sn=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f2); sh=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f4)
+            sel_info="${BOLD}${BLUE}${sn}${RESET}@${GREEN}${sh}${RESET} "
+        fi
+        _NEW_LINES+=(" ${mode_hint}${total}个节点 ${sel_info}${DIM}| 1-9直连 Enter连接 e编辑 p预览 s排序 u撤销 d删除 x导出 i导入 t主题 h帮助 q退出${RESET}")
     fi
 
-    local display_id=1 idx=0 row=0
-    for node in "${disp_nodes[@]}"; do
-        [[ $idx -lt ${_SSHM_SCROLL_OFFSET:-0} ]] && { ((idx++)); ((display_id++)); continue; }
-        [[ $row -ge $visible_h ]] && break
-
-        IFS='|' read -r original_id name group host port type tags <<<"$node"
-        local prefix=" "
-        local cursor=" "
-        if [[ "$highlight" -eq 1 && $idx -eq $selected_idx ]]; then
-            prefix="${BOLD}${BLUE}▶${RESET}"
-            cursor="${BOLD}${BLUE}▸${RESET}"
-        elif [[ "$highlight" -eq 2 && $idx -eq $selected_idx ]]; then
-            prefix="${BOLD}${RED}▶${RESET}"
-            cursor="${BOLD}${RED}▸${RESET}"
+    if [[ -n "${_SSHM_LAST_RENDERED[*]:-}" ]]; then
+        local max=${#_NEW_LINES[@]}; (( ${#_SSHM_LAST_RENDERED[@]} > max )) && max=${#_SSHM_LAST_RENDERED[@]}
+        for ((i=0; i<max; i++)); do
+            local new="${_NEW_LINES[i]:-}"
+            local old="${_SSHM_LAST_RENDERED[i]:-}"
+            if [[ "$new" != "$old" ]]; then
+                printf '\033[%d;1H%s\033[K' $((i+1)) "$new"
+            fi
+        done
+        if (( ${#_SSHM_LAST_RENDERED[@]} > ${#_NEW_LINES[@]} )); then
+            for ((i=${#_NEW_LINES[@]}; i<${#_SSHM_LAST_RENDERED[@]}; i++)); do
+                printf '\033[%d;1H\033[K' $((i+1))
+            done
         fi
-        local auth_icon
-        auth_icon=$(_auth_icon "$type")
-        local id_str
-        id_str=$(printf "%2d" $display_id)
-        local group_display="$group"
-        [[ -z "$group_display" ]] && group_display="Default"
-        local name_display="$name"
-        if [[ -n "$filter_key" ]]; then
-            local hl_name="${name//${filter_key}/\\033[7m${filter_key}\\033[0m}"
-            [[ "$hl_name" != "$name" ]] && name_display="$hl_name"
-        fi
-        local tag_display=""
-        [[ -n "${tags:-}" ]] && tag_display=" ${CYAN}#${tags//,/ #}${RESET}"
-        local pad_group pad_name pad_hp
-        pad_group=$(_pad_right "$group_display" 12)
-        pad_name=$(_pad_right "$name_display" 14)
-        pad_hp=$(_pad_right "${host}:${port}" 26)
-        _echo " ${prefix} ${YELLOW}${id_str}${RESET} ${cursor} ${DIM}●${RESET} ${pad_group} ${pad_name} ${pad_hp} ${auth_icon}${tag_display}"
-        ((display_id++)); ((idx++)); ((row++))
-    done
-
-    if [[ ${_SSHM_SCROLL_OFFSET:-0} -gt 0 ]]; then _echo "  ${DIM}${CYAN}▲${RESET}"; fi
-    if [[ $total -gt $((_SSHM_SCROLL_OFFSET + visible_h)) ]]; then _echo "  ${DIM}${CYAN}▼ 还有 $((total - _SSHM_SCROLL_OFFSET - visible_h)) 项${RESET}"; fi
-
-    echo ""
-    local mode_hint=""
-    [[ "$highlight" -eq 2 ]] && mode_hint="${BOLD}${RED}[删除模式]${RESET} "
-    local sel_info=""
-    if [[ $total -gt 0 && $selected_idx -lt $total ]]; then
-        local sn sh; sn=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f2); sh=$(echo "${disp_nodes[$selected_idx]}" | cut -d'|' -f4)
-        sel_info="${BOLD}${BLUE}${sn}${RESET}@${GREEN}${sh}${RESET} "
+    else
+        printf '\033[H'
+        printf '%s\n' "${_NEW_LINES[@]}"
     fi
-    _echo " ${mode_hint}${total}个节点 ${sel_info}${DIM}| 1-9直连 Enter连接 e编辑 p预览 s排序 u撤销 d删除 x导出 i导入 t主题 h帮助 q退出${RESET}"
+    _SSHM_LAST_RENDERED=("${_NEW_LINES[@]}")
 }
 
 _preview_node() {
