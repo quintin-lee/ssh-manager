@@ -4,6 +4,9 @@
 |------|------|
 | [README.md](../README.md) | 项目主页 — 安装、使用、配置、CI/CD、安全 |
 | [release.md](release.md) | 发布流程 — 版本规范、发布步骤、CI 自动构建说明 |
+| [config-reference.md](config-reference.md) | YAML 配置字段完整参考 |
+| [changelog.md](changelog.md) | 变更日志格式规范 |
+| [ci-test.md](ci-test.md) | CI 测试工作流说明 |
 
 ## 模块参考
 
