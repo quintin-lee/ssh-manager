@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
+# ============================================================================
+# sshm — SSH Manager main entry point
+#
+# Sources all lib modules, parses CLI options, then launches either the
+# interactive TUI or executes a single-shot command.
+#
+# Load order:
+#   yaml_parser → yaml_ops → config → util → ssh → node_cmd → tui
+#
+# Flow:
+#   1. Source lib modules from repo tree or system paths
+#   2. Parse CLI flags (--help, --version, --config, --validate, etc.)
+#   3. Launch TUI (interactive mode) or run CLI command
+#
 # Author: quintin
 # Date: 2026-01-10
 # Version: read from VERSION file at runtime
+# ============================================================================
 
 set -o pipefail
 
