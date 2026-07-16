@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+# ============================================================================
+# yaml_ops.sh — YAML serialization for node operations
+#
+# Generates YAML output blocks for saving/exporting node configuration.
+# Used by node CRUD functions to construct proper YAML syntax.
+#
+# Key functions:
+#   _yaml_node_block     — generate YAML block for a single node
+#   _build_config_yaml   — compose full config YAML from updated node list
+#   _export_nodes        — render config as SSH config format
+# ============================================================================
 
 _yaml_node_block() {
     local name="$1" group="$2" host="$3" port="$4" user="$5" type="$6" pass="$7" keypath="$8" tags="$9"

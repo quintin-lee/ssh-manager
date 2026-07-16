@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
-
+# ============================================================================
+# tui.sh — Terminal UI rendering (the main interactive interface)
+#
+# Renders the full-screen TUI: node list, preview pane, input forms, bottom
+# status bar. Handles keyboard input, filtering, sorting, and selection.
+#
+# Key functions:
+#   _render_list        — draw scrollable node table with column headers
+#   _preview_node       — show selected node details in preview pane
+#   _add_node_form      — multi-field form for creating a node
+#   _edit_node_form     — multi-field form for modifying a node
+#   _init_ping_checks   — batch async ping spawning (runs in background)
+#
+# States: LIST (browse), PREVIEW (node details), ADD_FORM, EDIT_FORM,
+#         CONFIRM_DELETE, EXPORT, IMPORT
+# ============================================================================
 # Base colors
 RED=$'\033[31m'
 GREEN=$'\033[32m'

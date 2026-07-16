@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+# ============================================================================
+# yaml_parser.sh — YAML config file parser
+#
+# Parses the YAML config into global arrays used by the TUI. Handles
+# multi-line YAML with node entries, inline tags, and quoted values.
+#
+# Key functions:
+#   _parse_nodes_yaml   — main entry: parses full config into arrays
+#   _node_from_block    — extract single node from parsed block
+#   _trim               — strip leading/trailing whitespace
+#
+# Output (global arrays indexed by node ID):
+#   _SSHM_NODE_NAMES[], _SSHM_NODE_GROUPS[], _SSHM_NODE_HOSTS[],
+#   _SSHM_NODE_PORTS[], _SSHM_NODE_USERS[], _SSHM_NODE_AUTH_TYPES[],
+#   _SSHM_NODE_PASSES[], _SSHM_NODE_KEYPATHS[], _SSHM_NODE_TAGS[]
+# ============================================================================
 
 _trim() {
     local var="$1"

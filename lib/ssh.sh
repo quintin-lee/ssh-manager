@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# ============================================================================
+# ssh.sh — SSH connection and credential handling
+#
+# Resolves credentials (password from plaintext or env var), builds SSH
+# command line, and delegates to expect-based auto-login via ssh_connect.tcl.
+#
+# Key functions:
+#   _sshm_resolve_pass   — resolve password literal / (env:VAR) / ${VAR}
+#   _ssh_connect         — run expect to automate SSH login
+#   _ssh_login           — connect to already-selected node entry
+#
+# Auth types: pass (password), key (SSH key), env (env var reference)
+# ============================================================================
 
 _sshm_resolve_pass() {
     local val="$1"

@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
-
-_SSHM_CONF="${SSH_MANAGER_CONFIG:-config.yaml}"
+# ============================================================================
+# config.sh — Configuration file loading and path resolution
+#
+# Resolves the config file path using a priority chain:
+#   1. --config <path> CLI argument  (via _SSHM_CONF_ARG)
+#   2. SSH_MANAGER_CONFIG env var
+#   3. ~/.config/ssh-manager/config.yaml
+#   4. /etc/ssh-manager/config.yaml
+#   5. ./config.yaml (CWD fallback)
+#
+# Also loads VERSION from repo tree or system install paths.
+# Exports: _SSHM_CONF, VERSION (global variables)
+# ============================================================================
 
 if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

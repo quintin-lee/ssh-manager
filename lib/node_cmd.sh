@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+# ============================================================================
+# node_cmd.sh — Node CRUD operations
+#
+# Provides interactive functions to add, edit, delete, and clone SSH nodes
+# through the TUI form interface.
+#
+# Key functions:
+#   _add_node          — fill form → append to config
+#   _edit_node         — fill form → update node in config
+#   _delete_node       — confirm → remove from config
+#   _clone_node        — duplicate a node
+#   sanitize_yaml_value — escape YAML special chars in value
+#
+# All mutations create a backup (config.yaml.bak.<timestamp>) first.
+# ============================================================================
 
 sanitize_yaml_value() {
     local val="$1"

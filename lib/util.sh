@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# ============================================================================
+# util.sh — Terminal utilities, formatting helpers, connection history
+#
+# Small reusable functions used across the TUI and CLI.
+#
+# Key functions:
+#   _term_width              — get terminal width (cols)
+#   _pad_right <str> <len>   — right-pad string to byte length
+#   _pad_center <str> <len>  — center-pad string
+#   _record_connection       — log connection to history file
+#   _sshm_history_menu       — render connection history picker
+#
+# History file: ~/.cache/ssh-manager-history (last 100 entries)
+# ============================================================================
 
 _term_width() {
     tput cols 2>/dev/null || echo "${COLUMNS:-80}"
