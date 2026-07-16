@@ -1,4 +1,24 @@
 # Maintainer: quintin <quintin@example.com>
+# ============================================================================
+# PKGBUILD — Arch Linux package build for ssh-manager
+#
+# Build:
+#   makepkg -si              # Build and install
+#   makepkg -f --noconfirm   # Force rebuild (used by CI)
+#
+# Creates: ssh-manager-<ver>-<rel>-any.pkg.tar.zst
+#
+# Install paths:
+#   /usr/bin/sshm                        — main binary
+#   /usr/share/ssh-manager/              — lib modules + VERSION
+#   /etc/ssh-manager/config.yaml         — system config (backed up on update)
+#   /etc/ssh-manager/config.yaml.default — template config
+#   /usr/share/bash-completion/completions/sshm  — bash completions
+#   /usr/share/zsh/site-functions/_sshm          — zsh completions
+#   /usr/share/doc/ssh-manager/          — docs
+#   /usr/share/licenses/ssh-manager/     — MIT license
+#   /usr/share/man/man1/sshm.1           — man page
+# ============================================================================
 pkgname="ssh-manager"
 pkgver="$(cat VERSION 2>/dev/null || echo "0.2")"
 pkgrel=4  # 升级版本号

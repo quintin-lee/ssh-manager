@@ -1,3 +1,29 @@
+# ============================================================================
+# ssh_connect.tcl — Expect-based SSH auto-login helper
+#
+# Called from lib/ssh.sh to automate SSH connections. Receives credentials
+# via environment variables set by the calling bash process.
+#
+# Environment variables consumed:
+#   SSH_USER   — SSH login username
+#   SSH_HOST   — target hostname/IP
+#   SSH_PORT   — target port (default 22)
+#   SSH_PASS   — password (may be empty for key auth)
+#   SSH_KEY    — path to SSH private key (may be empty)
+#
+# Exit codes:
+#   0 — session ended normally (user exited shell)
+#   1 — connection timeout
+#   2 — authentication failed (wrong password or permission denied)
+#   3 — connection refused
+#   4 — host unreachable
+#   5 — host key verification failed
+#   6 — DNS resolution failed
+#
+# The __SSH_EXTRA__ placeholder is substituted at runtime by bash for
+# additional SSH options (e.g. -i <keypath>). The __PASSPHRASE_BRANCH__
+# placeholder inserts expect logic for key passphrase prompts.
+# ============================================================================
 set timeout 30
 set pass $env(SSH_PASS)
 set host $env(SSH_HOST)

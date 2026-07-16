@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# ============================================================================
+# [DEPRECATED] release.sh — Version bump and tag
+#
+# ⚠️  This script is superseded by scripts/tag.sh.
+#     Please use tag.sh instead — it also updates README.md and CHANGELOG.md.
+#
+# Kept for reference. Remove once all team members/tooling have migrated.
+# ============================================================================
 set -euo pipefail
 
 OLD_VERSION=$(cat VERSION)
