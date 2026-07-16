@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# ============================================================================
+# install.sh — Install ssh-manager to system paths from source
+#
+# Usage:
+#   sudo ./scripts/install.sh         # Install from local source tree
+#   sudo ./ssh-manager-<ver>.run      # (makeself wraps this script internally)
+#
+# Workflow:
+#   1. Copy binary   → /usr/local/bin/sshm
+#   2. Copy libs     → /usr/local/share/ssh-manager/
+#   3. Copy conf     → /etc/ssh-manager/config.yaml (if not exists)
+#   4. Copy docs     → /usr/local/share/doc/ssh-manager/
+#   5. Deploy shell completions → bash/zsh/fish system directories
+#   6. Register uninstall script (sshm-uninstall)
+#
+# Supports: --help, --uninstall
+# ============================================================================
+
 set -euo pipefail
 
 # 设置颜色输出

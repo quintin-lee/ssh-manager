@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
+# ============================================================================
+# package.sh — Build distribution packages (.deb / .rpm / .tar.gz)
+#
+# Usage:
+#   ./scripts/package.sh              # Auto-detect OS and build matching format
+#
+# Workflow:
+#   1. Detect OS  (debian / redhat / arch / generic)
+#   2. Prepare staging area  — copy files to build/stage/
+#   3. Build package(s)      — output to dist/
+#
+# Outputs:
+#   dist/ssh-manager_<ver>-1_all.deb         (Debian/Ubuntu)
+#   dist/ssh-manager-<ver>-1.noarch.rpm      (RHEL/Fedora)
+#   dist/ssh-manager-<ver>.tar.gz            (generic tarball)
+#
+# Dependencies: dpkg-deb, rpmbuild, tar (varies by platform)
+# ============================================================================
+
 set -e
 
 # Resolve Project Root

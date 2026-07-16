@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# ============================================================================
+# build_makeself.sh — Build self-extracting .run installer via makeself
+#
+# Usage:
+#   ./scripts/build_makeself.sh       # Generate ssh-manager-<ver>.run
+#
+# Workflow:
+#   1. Prepare payload directory    — copy bin/, lib/, conf/, completions/, doc/
+#   2. Embed install script         — install.sh runs after extraction
+#   3. Package with makeself        — output single .run executable
+#
+# Output:
+#   ssh-manager-<version>.run       (self-extracting installer, project root)
+#
+# Dependencies: makeself
+# ============================================================================
+
 set -e
 
 # Resolve Project Root
