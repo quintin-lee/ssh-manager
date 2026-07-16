@@ -573,7 +573,7 @@ _render_list() {
             done
         fi
     else
-        printf '\033[H'
+        printf '\033[H\033[J'
         printf '%s\n' "${_NEW_LINES[@]}"
     fi
     _SSHM_LAST_RENDERED=("${_NEW_LINES[@]}")
@@ -678,6 +678,7 @@ _interactive_list() {
                         esac
                         sleep 1.5
                     fi
+                    _SSHM_LAST_RENDERED=()
                 fi
             fi
             ;;
@@ -688,6 +689,7 @@ _interactive_list() {
             ;;
         a|A)
             add_node
+            _SSHM_LAST_RENDERED=()
             ;;
         d|D)
             if [[ "$mode" == "delete" ]]; then
@@ -726,28 +728,35 @@ _interactive_list() {
                 _echo "\n${YELLOW}暂无连接历史${RESET}"
                 sleep 1
             fi
+            _SSHM_LAST_RENDERED=()
             ;;
         e|E)
             if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
                 _edit_node "${_SSHM_RENDERED_NODES[$selected_idx]}"
+                _SSHM_LAST_RENDERED=()
             fi
             ;;
         x|X)
             export_config
+            _SSHM_LAST_RENDERED=()
             ;;
         p|P)
             if [[ $selected_idx -ge 0 && $selected_idx -lt ${#_SSHM_RENDERED_NODES[@]} ]]; then
                 _preview_node "${_SSHM_RENDERED_NODES[$selected_idx]}"
+                _SSHM_LAST_RENDERED=()
             fi
             ;;
         t|T)
             _choose_theme
+            _SSHM_LAST_RENDERED=()
             ;;
         i|I)
             import_config
+            _SSHM_LAST_RENDERED=()
             ;;
         h|H)
             show_help
+            _SSHM_LAST_RENDERED=()
             ;;
         q|Q)
             return
@@ -779,6 +788,7 @@ _interactive_list() {
                     _echo "\n  ${BLUE}>>> ${YELLOW}${ode_name}${RESET} @ ${GREEN}${ode_host}${RESET}\n"
                     ssh_connect "$ode_id"
                     local cs=$?; [[ $cs -ne 0 ]] && sleep 1.5
+                    _SSHM_LAST_RENDERED=()
                 fi
             fi
             ;;
