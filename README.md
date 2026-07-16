@@ -3,7 +3,7 @@
 基于 expect 的 SSH 连接管理工具。方向键导航、实时过滤、命令行直连、5 种打包格式。
 
 [![Tests](https://github.com/quintin-lee/ssh-manager/actions/workflows/test.yml/badge.svg)](https://github.com/quintin-lee/ssh-manager/actions/workflows/test.yml)
-![Version](https://img.shields.io/badge/version-0.5.4-blue)
+![Version](https://img.shields.io/badge/version-0.5.5-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
 
@@ -20,24 +20,24 @@
 
 ```bash
 ./scripts/build_makeself.sh
-sudo ./ssh-manager-0.5.4.run
+sudo ./ssh-manager-0.5.5.run
 ```
 
 ### 系统包管理器
 
 ```bash
 # Debian/Ubuntu
-sudo dpkg -i ssh-manager_0.5.4-1_all.deb
+sudo dpkg -i ssh-manager_0.5.5-1_all.deb
 
 # RHEL/Fedora
-sudo rpm -ivh ssh-manager-0.5.4-1.noarch.rpm
+sudo rpm -ivh ssh-manager-0.5.5-1.noarch.rpm
 
 # Arch Linux
-sudo pacman -U ssh-manager-0.5.4-4-any.pkg.tar.zst
+sudo pacman -U ssh-manager-0.5.5-4-any.pkg.tar.zst
 
 # 通用 tarball
-tar xzf ssh-manager-0.5.4.tar.gz
-cd ssh-manager-0.5.4 && sudo ./install.sh
+tar xzf ssh-manager-0.5.5.tar.gz
+cd ssh-manager-0.5.5 && sudo ./install.sh
 ```
 
 ### 从源码构建包
