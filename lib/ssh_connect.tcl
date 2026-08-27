@@ -24,7 +24,7 @@
 # additional SSH options (e.g. -i <keypath>). The __PASSPHRASE_BRANCH__
 # placeholder inserts expect logic for key passphrase prompts.
 # ============================================================================
-set timeout 30
+set timeout -1
 set pass $env(SSH_PASS)
 set host $env(SSH_HOST)
 set port $env(SSH_PORT)
