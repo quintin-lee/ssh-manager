@@ -32,7 +32,7 @@ set user $env(SSH_USER)
 set key $env(SSH_KEY)
 set exit_code 0
 
-spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 __SSH_EXTRA__ -p $port $user@$host
+spawn ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=2 -o TCPKeepAlive=yes __SSH_EXTRA__ -p $port $user@$host
 expect {
     "*password:*" {
         send -- "$pass\r"
