@@ -78,8 +78,9 @@ ssh_connect() {
     tcl_template="${tcl_template//__PASSPHRASE_BRANCH__/${passphrase_branch}}"
 
     expect -c "$tcl_template"
-    exit_code=$?
-
+    local exit_code=$?
+    # Restore terminal state after expect interact
+    stty sane 2>/dev/null || true
     unset SSH_PASS SSH_KEY SSH_HOST SSH_PORT SSH_USER
     return $exit_code
 }
