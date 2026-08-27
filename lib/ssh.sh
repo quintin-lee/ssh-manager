@@ -47,7 +47,7 @@ ssh_connect() {
     local ssh_extra=""
     local passphrase_branch=""
     if [[ "$NODE_TYPE" == "key" ]]; then
-        ssh_extra='-i "$key"'
+        ssh_extra="-i $key"
         passphrase_branch='
                 "*passphrase*" {
                     send -- "$pass\r"
