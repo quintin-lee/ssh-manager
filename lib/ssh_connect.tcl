@@ -21,7 +21,7 @@
 #   6 — DNS resolution failed
 #
 # The __SSH_EXTRA__ placeholder is substituted at runtime by bash for
-# additional SSH options (e.g. -i <keypath>). The __PASSPHRASE_BRANCH__
+# additional SSH options (e.g. -i <keypath>). See __PASSPHRASE_INSERT__ below.
 # placeholder inserts expect logic for key passphrase prompts.
 # ============================================================================
 set timeout -1
