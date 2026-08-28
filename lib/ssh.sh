@@ -80,7 +80,7 @@ ssh_connect() {
     expect -c "$tcl_template"
     local exit_code=$?
     # Restore terminal state after expect interact
-    stty sane 2>/dev/null || true
+    local _saved_stty=$(stty -g 2>/dev/null || true); [[ -n "$_saved_stty" ]] && stty "$_saved_stty" 2>/dev/null || stty sane 2>/dev/null || true
     unset SSH_PASS SSH_KEY SSH_HOST SSH_PORT SSH_USER
     return $exit_code
 }
